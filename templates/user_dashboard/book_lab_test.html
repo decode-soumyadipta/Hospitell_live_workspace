@@ -1,0 +1,123 @@
+<!-- templates/user_portal/book_lab_test.html -->
+{% extends "layout.html" %}
+{% block title %}Book Lab Test{% endblock %}
+{% block content %}
+
+<main id="main" class="main">
+    <div class="pagetitle">
+        <h1>Book Lab Test</h1>
+    </div>
+
+    <section class="section">
+        <div class="row">
+            <div class="col-lg-12">
+
+                <!-- Lab Test Booking Form -->
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Select a Lab Test</h5>
+
+                        <form method="POST" action="{{ url_for('user_bp.book_lab_test') }}" enctype="multipart/form-data">
+                            <!-- Department Dropdown -->
+                           
+                            <div class="form-group">
+                                <label for="booking_date">Select Booking Date</label>
+                                <input type="date" name="booking_date" id="booking_date" class="form-control" required>
+                            </div>
+                           
+                           
+                            <div class="form-group">
+                                <label for="department">Select Department</label>
+                                <select name="department" id="department" class="form-control" required>
+                                    <option value="">-- Select Department --</option>
+                                    {% for department in departments %}
+                                        <option value="{{ department.id }}">{{ department.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Test Dropdown (Populated dynamically based on department) -->
+                            <div class="form-group">
+                                <label for="test">Select Test</label>
+                                <select name="test" id="test" class="form-control" required>
+                                    <option value="">-- Select Test --</option>
+                                </select>
+                            </div>
+
+                            <!-- Hospital Dropdown (Populated dynamically based on test availability) -->
+                            <div class="form-group">
+                                <label for="hospital">Select Hospital</label>
+                                <select name="hospital" id="hospital" class="form-control" required>
+                                    <option value="">-- Select Hospital --</option>
+                                </select>
+                            </div>
+
+                            <!-- Test Price (Displayed dynamically based on selection) -->
+                            <div class="form-group">
+                                <label for="price">Test Price (₹)</label>
+                                <input type="text" name="price" id="price" class="form-control" readonly>
+                            </div>
+
+                            <!-- Prescription Upload -->
+                            <div class="form-group">
+                                <label for="prescription">Upload Prescription (PDF, JPG, PNG)</label>
+                                <input type="file" name="prescription" id="prescription" class="form-control" required>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <button type="submit" class="btn btn-primary">Book Lab Test</button>
+                        </form>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<script>
+    // Populate tests and hospitals based on department selection
+    document.getElementById('department').addEventListener('change', function() {
+        const departmentId = this.value;
+        if (!departmentId) return;
+
+        fetch(`/get_tests_by_department/${departmentId}`)
+            .then(response => response.json())
+            .then(data => {
+                const testDropdown = document.getElementById('test');
+                testDropdown.innerHTML = '<option value="">-- Select Test --</option>';
+                data.tests.forEach(test => {
+                    const option = document.createElement('option');
+                    option.value = test.id;
+                    option.textContent = `${test.name} (₹${test.price})`;
+                    testDropdown.appendChild(option);
+                });
+            });
+    });
+
+    // Populate hospitals based on test selection and display price
+    document.getElementById('test').addEventListener('change', function() {
+        const testId = this.value;
+        if (!testId) return;
+
+        fetch(`/get_hospitals_by_test/${testId}`)
+            .then(response => response.json())
+            .then(data => {
+                const hospitalDropdown = document.getElementById('hospital');
+                hospitalDropdown.innerHTML = '<option value="">-- Select Hospital --</option>';
+                data.hospitals.forEach(hospital => {
+                    const option = document.createElement('option');
+                    option.value = hospital.id;
+                    option.textContent = hospital.name;
+                    hospitalDropdown.appendChild(option);
+                });
+
+                // Set price based on selected test
+                document.getElementById('price').value = data.price;
+            });
+    });
+</script>
+
+{% endblock %}

@@ -1,0 +1,53 @@
+<!-- templates/user_portal/lab_test_booking_history.html -->
+{% extends "layout.html" %}
+{% block title %}Lab Test Booking History{% endblock %}
+{% block content %}
+
+<main id="main" class="main">
+    <div class="pagetitle">
+        <h1>Your Lab Test Bookings</h1>
+    </div>
+
+    <section class="section">
+        <div class="row">
+            <div class="col-lg-12">
+
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Booking History</h5>
+
+                        {% if bookings %}
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Test Name</th>
+                                    <th>Hospital</th>
+                                    <th>Status</th>
+                                    <th>Booking Code</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for booking in bookings %}
+                                <tr>
+                                    <td>{{ booking.test_name }}</td>
+                                    <td>{{ booking.hospital.name }}</td>
+                                    <td>{{ booking.status }}</td>
+                                    <td>{{ booking.booking_code }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p>No lab test bookings found.</p>
+                        {% endif %}
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+</main>
+
+{% endblock %}
