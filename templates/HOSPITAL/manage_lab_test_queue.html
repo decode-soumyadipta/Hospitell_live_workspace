@@ -1,0 +1,78 @@
+<!-- templates/HOSPITAL/manage_lab_test_queue.html -->
+{% extends "HOSPITAL/hospital_base_layout.html" %}
+{% block title %}Manage Lab Test Queue{% endblock %}
+{% block content %}
+<main id="main" class="main">
+
+    <div class="pagetitle">
+        <h1>Manage Lab Test Queue</h1>
+    </div><!-- End Page Title -->
+
+    <section class="section">
+        <div class="row">
+            <div class="col-lg-12">
+
+                <!-- Queue Management Form -->
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Create Lab Test Queue</h5>
+
+                        <!-- Form to create queue -->
+                        <form method="POST" action="{{ url_for('hospital_bp.manage_lab_test_queue') }}">
+                            <div class="form-group">
+                                <label for="test_id">Select Lab Test</label>
+                                <select name="test_id" id="test_id" class="form-control" required>
+                                    <option value="">-- Select Test --</option>
+                                    {% for test in tests %}
+                                        <option value="{{ test.id }}">{{ test.test_name }} - {{ test.test_category }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="test_date">Select Date</label>
+                                <input type="date" id="test_date" name="test_date" class="form-control" required>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary mt-3">Create Queue</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Existing Queue -->
+                <div class="card mt-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Existing Queue</h5>
+                        {% if queue %}
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Patient Name</th>
+                                        <th>Test Name</th>
+                                        <th>Queue Number</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for patient in queue %}
+                                        <tr>
+                                            <td>{{ loop.index }}</td>
+                                            <td>{{ patient.user.name }}</td>
+                                            <td>{{ patient.test_name }}</td>
+                                            <td>{{ patient.queue_number }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <p>No patients in queue for the selected test.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+</main>
+{% endblock %}

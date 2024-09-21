@@ -1,0 +1,141 @@
+<!-- templates/HOSPITAL/manage_diagnostic_departments.html -->
+{% extends "HOSPITAL/hospital_base_layout.html" %}
+{% block title %}Manage Diagnostic Departments{% endblock %}
+{% block content %}
+<main id="main" class="main">
+
+    <div class="pagetitle">
+        <h1>Manage Diagnostic Departments</h1>
+    </div><!-- End Page Title -->
+
+    <section class="section">
+        <div class="row">
+            <div class="col-lg-12">
+
+                <!-- Add Diagnostic Department Form -->
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Add Diagnostic Department and Tests</h5>
+
+                        <form method="POST" action="{{ url_for('hospital_bp.manage_diagnostic_departments') }}">
+                            <!-- Diagnostic Department Dropdown -->
+                            <div class="form-group">
+                                <label for="department_name">Select Diagnostic Department</label>
+                                <select name="department_name" id="department_name" class="form-control" required>
+                                    <option value="Pathology">Pathology</option>
+                                    <option value="Radiology">Radiology</option>
+                                    <option value="Chemographic">Chemographic</option>
+                                </select>
+                            </div>
+                        
+                            <!-- Test Name Dropdown -->
+                            <div class="form-group">
+                                <label for="test_name">Select Test</label>
+                                <select name="test_name" id="test_name" class="form-control" required>
+                                    <!-- Test options will be dynamically populated -->
+                                </select>
+                            </div>
+                        
+                            <!-- Test Price (Make sure this field is not readonly if you want to store it) -->
+                            <div class="form-group">
+                                <label for="price">Test Price (₹)</label>
+                                <input type="text" name="price" id="price" class="form-control" required>
+                            </div>
+                        
+                            <!-- Submit Button -->
+                            <button type="submit" class="btn btn-primary">Add Department & Test</button>
+                        </form>
+                        
+                    </div>
+                </div>
+
+                <!-- Display Existing Diagnostic Departments and Tests -->
+                <div class="card mt-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Existing Diagnostic Departments</h5>
+
+                        {% if departments %}
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>Department</th>
+                                        <th>Tests</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for department in departments %}
+                                        <tr>
+                                            <td>{{ department.name }}</td>
+                                            <td>
+                                                <ul>
+                                                    {% for test in department.tests %}
+                                                        <li>{{ test.name }} - ₹{{ test.price }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <p>No diagnostic departments found.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<script>
+    // Test categories and subcategories data
+    const testCategories = {
+        "Pathology": [
+            {"name": "Biopsy", "price": "8000"},
+            {"name": "Blood tests", "price": "800"},
+            // Additional Pathology tests...
+        ],
+        "Radiology": [
+            {"name": "X-ray", "price": "800"},
+            {"name": "CT Scan", "price": "7000"},
+            // Additional Radiology tests...
+        ],
+        "Chemographic": [
+            {"name": "Complete Blood Count (CBC)", "price": "4000"},
+            {"name": "Liver Function Tests", "price": "1200"},
+            // Additional Chemographic tests...
+        ]
+    };
+
+    // Populate the test_name dropdown and price field based on the selected department
+    document.getElementById('department_name').addEventListener('change', function() {
+        const selectedCategory = this.value;
+        const testNameDropdown = document.getElementById('test_name');
+        const priceInput = document.getElementById('price');
+
+        // Clear the previous options
+        testNameDropdown.innerHTML = '';
+        priceInput.value = '';
+
+        // Populate the test names for the selected category
+        if (testCategories[selectedCategory]) {
+            testCategories[selectedCategory].forEach(test => {
+                const option = document.createElement('option');
+                option.value = test.name;
+                option.textContent = `${test.name}`;
+                testNameDropdown.appendChild(option);
+            });
+
+            // Update the price when a test is selected
+            testNameDropdown.addEventListener('change', function() {
+                const selectedTest = testCategories[selectedCategory].find(test => test.name === this.value);
+                if (selectedTest) {
+                    priceInput.value = selectedTest.price;  // Fill price value in the input field
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}
