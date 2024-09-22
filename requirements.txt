@@ -55,7 +55,7 @@ itsdangerous==2.2.0
 jax==0.4.30
 jaxlib==0.4.30
 Jinja2==3.1.4
-keras==3.5.0
+keras==2.11.0  # Adjusted to match TensorFlow 2.11
 kiwisolver==1.4.5
 libclang==18.1.1
 Markdown==3.7
@@ -71,7 +71,7 @@ mysql-connector-python==9.0.0
 mysqlclient==2.2.4
 namex==0.0.8
 networkx==3.3
-numpy==1.26.4
+numpy==1.23.5  # Updated to match TensorFlow compatibility
 oauthlib==3.2.2
 olamaps==0.5.2
 opencv-contrib-python==4.10.0.84
@@ -82,7 +82,7 @@ packaging==24.1
 pandas==2.2.2
 pillow==10.4.0
 priority==2.0.0
-protobuf==4.25.3
+protobuf==3.20.3  # Adjusted to match TensorFlow compatibility
 pycparser==2.22
 Pygments==2.18.0
 PyJWT==2.8.0
@@ -100,7 +100,7 @@ requests-oauthlib==2.0.0
 rich==13.8.0
 safetensors==0.4.4
 schedule==0.6.0
-scipy==1.14.0
+scipy==1.9.1  # Adjusted for TensorFlow compatibility
 setuptools==70.3.0
 six==1.16.0
 sniffio==1.3.1
@@ -110,12 +110,11 @@ SQLAlchemy==2.0.31
 stream-python==5.3.1
 stripe==10.3.0
 sympy==1.13.2
-tensorboard==2.17.1
+tensorboard==2.11.2  # Compatible with TensorFlow 2.11
 tensorboard-data-server==0.7.2
-tensorflow==2.10.0  # If you're using Python >=3.8 and <3.11
-tensorflow-intel==2.10.0  # Requires Python >=3.8 and <3.11
+tensorflow==2.11.0  # Adjusted for broader compatibility
+tensorflow-intel==2.11.0
 termcolor==2.4.0
-tf_keras==2.17.0
 tokenizers==0.19.1
 torch==2.4.0
 tqdm==4.66.5
