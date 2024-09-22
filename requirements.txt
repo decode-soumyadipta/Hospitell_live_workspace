@@ -112,8 +112,8 @@ stripe==10.3.0
 sympy==1.13.2
 tensorboard==2.17.1
 tensorboard-data-server==0.7.2
-tensorflow==2.17.0  # If you're using Python >=3.8 and <3.11
-tensorflow-intel==2.17.0  # Requires Python >=3.8 and <3.11
+tensorflow==2.10.0  # If you're using Python >=3.8 and <3.11
+tensorflow-intel==2.10.0  # Requires Python >=3.8 and <3.11
 termcolor==2.4.0
 tf_keras==2.17.0
 tokenizers==0.19.1
