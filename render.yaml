@@ -1,0 +1,2 @@
+runtime: python
+pythonVersion: 3.9  # or 3.10, depending on your needs
