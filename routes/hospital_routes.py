@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app, session
 from flask_login import login_required, current_user
-from models import db, Hospital, Ward, Bed, Booking, Notification, User, Department, Doctor, OPDAppointment, MaxPatient, LabTestBooking, Queue, DiagnosticDepartment, DiagnosticTest
+from models import db, Hospital, Ward, Bed, Booking, Notification, User, Department, Doctor, OPDAppointment, MaxPatient, LabTestBooking, Queue, DiagnosticDepartment, DiagnosticTest, Ambulance
 from flask_mail import Message, Mail
 from datetime import datetime
 import os
@@ -254,6 +254,12 @@ def complete_check_in(booking_id):
     booking.assigned_bed_number = bed_number
     booking.user.name = patient_name
     db.session.commit()
+
+    # If the booking had an ambulance, mark the ambulance as available again
+    if booking.ambulance_id:
+        ambulance = Ambulance.query.get(booking.ambulance_id)
+        ambulance.status = 'available'
+        db.session.commit()
 
     # Send an email to the user with the bed number
     msg = Message('Admission Details', recipients=[booking.user.email])
@@ -1126,3 +1132,72 @@ def set_max_patients():
         return jsonify(success=False), 400
 
 
+
+@hospital_bp.route('/register_ambulance', methods=['GET', 'POST'])
+@login_required
+def register_ambulance():
+    hospital = current_user.hospitals[0]  # Assuming the hospital linked to the current user
+
+    if request.method == 'POST':
+        driver_name = request.form.get('driver_name')
+        driver_phone = request.form.get('driver_phone')
+        driver_email = request.form.get('driver_email')
+        vehicle_number = request.form.get('vehicle_number')
+
+        # Automatically get hospital's location (latitude, longitude)
+        location_lat = hospital.latitude
+        location_lng = hospital.longitude
+
+        # Add new ambulance to the database
+        new_ambulance = Ambulance(
+            hospital_id=hospital.id,
+            driver_name=driver_name,
+            driver_phone=driver_phone,
+            driver_email=driver_email,
+            vehicle_number=vehicle_number,
+            location_lat=location_lat,
+            location_lng=location_lng,
+            status='available'  # Default status
+        )
+        db.session.add(new_ambulance)
+        db.session.commit()
+
+        flash('Ambulance registered successfully!', 'success')
+        return redirect(url_for('hospital_bp.register_ambulance'))
+
+    # Fetch all ambulances for this hospital
+    ambulances = Ambulance.query.filter_by(hospital_id=hospital.id).all()
+    
+    return render_template('HOSPITAL/register_ambulance.html', ambulances=ambulances, hospital=hospital)
+
+# Route to update ambulance status
+@hospital_bp.route('/update_ambulance_status/<int:ambulance_id>', methods=['POST'])
+@login_required
+def update_ambulance_status(ambulance_id):
+    data = request.json
+    new_status = data.get('status')
+    ambulance = Ambulance.query.get_or_404(ambulance_id)
+
+    if ambulance.hospital_id != current_user.hospitals[0].id:
+        return jsonify({'success': False, 'message': 'Unauthorized access'}), 403
+
+    ambulance.status = new_status
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Status updated successfully'})
+
+# Route to delete ambulance
+@hospital_bp.route('/delete_ambulance/<int:ambulance_id>', methods=['GET'])
+@login_required
+def delete_ambulance(ambulance_id):
+    ambulance = Ambulance.query.get_or_404(ambulance_id)
+
+    if ambulance.hospital_id != current_user.hospitals[0].id:
+        flash('You are not authorized to delete this ambulance.', 'danger')
+        return redirect(url_for('hospital_bp.register_ambulance'))
+
+    db.session.delete(ambulance)
+    db.session.commit()
+
+    flash('Ambulance deleted successfully!', 'success')
+    return redirect(url_for('hospital_bp.register_ambulance'))

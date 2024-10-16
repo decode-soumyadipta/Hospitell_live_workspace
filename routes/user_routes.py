@@ -1,7 +1,7 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 import json
 from flask_login import login_required, current_user
-from models import Hospital, Booking, Rating, Bed, Ward, db, Department, Doctor, OPDAppointment, LabTestBooking, Hospital, Queue, DiagnosticDepartment, DiagnosticTest
+from models import Hospital, Booking, Rating, Bed, Ward, db, Department, Doctor, OPDAppointment, LabTestBooking, Hospital, Queue, DiagnosticDepartment, DiagnosticTest, Ambulance
 from sqlalchemy.orm import aliased
 from geopy.distance import great_circle
 import random
@@ -175,86 +175,78 @@ def dashboard():
 @user_bp.route('/book_bed', methods=['POST'])
 @login_required
 def book_bed():
-    if Booking.query.filter_by(user_id=current_user.id, status='Confirmed').count() > 0:
-        return jsonify({'success': False, 'message': 'You already have a confirmed booking.'}), 400
 
     data = request.json
     hospital_id = data.get('hospital_id')
     ambulance_required = data.get('ambulance_required')
-    hospital = Hospital.query.get(hospital_id)
+    user_phone = data.get('phone')
+    # Add logic to skip the most recent booking if passed from the frontend
+    recent_booking_id = data.get('recent_booking_id')
 
+    existing_booking = Booking.query.filter(
+        Booking.user_id == current_user.id,
+        Booking.status == 'Confirmed',
+        Booking.id != recent_booking_id  # Skip the recent booking
+    ).first()
+
+    if existing_booking:
+        return jsonify({'success': False, 'message': 'You already have an active booking.'}), 400
+
+   
+
+    # Log incoming data for debugging
+    current_app.logger.info(f"Booking data: hospital_id={hospital_id}, ambulance_required={ambulance_required}, phone={user_phone}")
+
+    if not hospital_id or ambulance_required is None or not user_phone:
+        return jsonify({'success': False, 'message': 'Missing required data.'}), 400
+
+    hospital = Hospital.query.get(hospital_id)
     if not hospital:
         return jsonify({'success': False, 'message': 'Hospital not found.'}), 404
 
     if hospital.vacant_general_beds <= 0:
         return jsonify({'success': False, 'message': 'No General beds available.'}), 400
 
-    # Check user location and address
-    if not current_user.location or not current_user.address:
-        return jsonify({'success': False, 'message': 'User location or address not set.'}), 400
-
     # Calculate distance and generate admission code
     user_lat, user_lng = map(float, current_user.location.split(','))
     distance = great_circle((user_lat, user_lng), (hospital.latitude, hospital.longitude)).kilometers
     admission_code = str(random.randint(1000, 9999))
 
-    # Create a new booking
+    # Create new booking
     booking = Booking(
         user_id=current_user.id,
         hospital_id=hospital_id,
         bed_type='General',
         distance=distance,
-        status='Confirmed',
+        status='Confirmed',  # Set to Confirmed by default
         admission_code=admission_code
     )
     db.session.add(booking)
     db.session.commit()
 
     if ambulance_required:
-        # Fetch a random ambulance from the hospital
-        ambulance = Ambulance.query.filter_by(hospital_id=hospital_id).first()
+        ambulance = Ambulance.query.filter_by(hospital_id=hospital_id, status='available').first()
 
         if not ambulance:
-            return jsonify({'success': False, 'message': 'No ambulance available.'}), 400
+            return jsonify({'success': False, 'message': 'No ambulances available. Would you like to proceed without an ambulance?'}), 400
 
-        # Send email with ambulance details
-        msg = Message('Booking Confirmation with Ambulance Service',
-                      sender=os.environ.get('SENDER_EMAIL'),
-                      recipients=[current_user.email])
-        msg.body = f"""
-        Dear {current_user.name},
+        # Mark the ambulance as "in use"
+        ambulance.status = 'in use'
+        booking.ambulance_id = ambulance.id
+        db.session.commit()
 
-        Your booking for a General bed at {hospital.name} has been confirmed.
-        Your admission code is {admission_code}.
-
-        Ambulance Driver: {ambulance.driver_name}
-        Driver Phone: {ambulance.driver_phone}
-        Vehicle Number: {ambulance.vehicle_number}
-
-        Best regards,
-        Hospital Management System
-        """
-        mail.send(msg)
-    else:
-        # Send normal email confirmation
-        msg = Message('Booking Confirmation',
-                      sender=os.environ.get('SENDER_EMAIL'),
-                      recipients=[current_user.email])
-        msg.body = f"""
-        Dear {current_user.name},
-
-        Your booking for a General bed at {hospital.name} has been confirmed.
-        Your admission code is {admission_code}.
-
-        Best regards,
-        Hospital Management System
-        """
-        mail.send(msg)
-
-    return jsonify({'success': True, 'message': 'Bed booked successfully.'}), 200
-
-
-
+    return jsonify({
+        'success': True,
+        'message': 'Bed booked successfully.',
+        'booking': {
+            'id': booking.id,
+            'hospital_name': hospital.name,
+            'bed_type': booking.bed_type,
+            'admission_code': booking.admission_code,
+            'distance': booking.distance,
+            'created_at': booking.created_at.strftime('%Y-%m-%d %H:%M:%S')
+        }
+    }), 200
 
 
 
