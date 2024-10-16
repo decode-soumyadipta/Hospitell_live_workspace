@@ -51,19 +51,20 @@ class User(UserMixin, db.Model):
     role = db.Column(db.String(50), nullable=False)  # Could be 'patient', 'hospital_admin', or 'ambulance_driver'
     location = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
+    prefers_ambulance = db.Column(db.Boolean, default=False)  # Optional user preference
     # Relationships
     notifications = db.relationship('Notification', back_populates='user', lazy=True)
     posts = db.relationship('Post', backref='author', lazy=True)
     cart = db.relationship('Cart', back_populates='user', uselist=False)
     comments = db.relationship('Comment', backref='comment_author', lazy=True)
     likes = db.relationship('Like', backref='like_author', lazy=True)
-    bookings = db.relationship('Booking', backref='user', lazy=True)
+    bookings = db.relationship('Booking', backref='booked_by', lazy=True)  # Renamed backref
     ratings = db.relationship('Rating', backref='user', lazy=True)
     hospitals = db.relationship('Hospital', back_populates='admin', lazy=True)
     opd_appointments = db.relationship('OPDAppointment', back_populates='user', lazy=True)
       # Add this line to complete the relationship
     lab_test_bookings = db.relationship('LabTestBooking', back_populates='user')
+    
 
 class Userfg(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -75,7 +76,6 @@ class Userfg(UserMixin, db.Model):
 
 class Hospital(db.Model):
     __tablename__ = 'hospital'
-
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     address = db.Column(db.String(255))
@@ -95,7 +95,7 @@ class Hospital(db.Model):
     # Relationships
     admin = db.relationship('User', back_populates='hospitals', lazy=True)
     wards = db.relationship('Ward', backref='hospital', lazy=True)
-    bookings = db.relationship('Booking', backref='hospital', lazy=True)
+    bookings = db.relationship('Booking', backref='booked_hospital', lazy=True)
     notifications = db.relationship('Notification', back_populates='hospital', lazy=True)
     departments = db.relationship('Department', back_populates='hospital', lazy=True)
     diagnostic_departments = db.relationship('DiagnosticDepartment', back_populates='hospital', lazy=True)  # New relationship for diagnostic departments
@@ -161,12 +161,21 @@ class Booking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     hospital_id = db.Column(db.Integer, db.ForeignKey('hospital.id'), nullable=False)
+    ambulance_id = db.Column(db.Integer, db.ForeignKey('ambulance.id'), nullable=True)  # Track ambulance
     bed_type = db.Column(db.String(50), nullable=False)  # ICU, OPD, General
-    status = db.Column(db.String(20), default='Pending')  # Pending, Confirmed, Cancelled
+    status = db.Column(db.String(20), default='Pending')  # Pending, Confirmed, CheckedIn
     distance = db.Column(db.Float, nullable=False)
     admission_code = db.Column(db.String(4), nullable=False)  # 4-digit admission code
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    assigned_bed_number = db.Column(db.String(10))  # New field to store the assigned bed number
+    assigned_bed_number = db.Column(db.String(10))  # Store the assigned bed number
+    ambulance_id = db.Column(db.Integer, db.ForeignKey('ambulance.id'), nullable=True)
+
+    # Relationships
+    user = db.relationship('User', backref='booked_by', lazy=True)
+    hospital = db.relationship('Hospital', backref='assigned_hospital', lazy=True)
+    ambulance = db.relationship('Ambulance', backref='bookings', lazy=True)  # Add relationship to ambulance
+    
+    
 
 
 
@@ -349,20 +358,22 @@ class DiagnosticTest(db.Model):
 
 
 class Ambulance(db.Model):
-    __tablename__ = 'ambulances'
-    
+    __tablename__ = 'ambulance'
     id = db.Column(db.Integer, primary_key=True)
-    hospital_id = db.Column(db.Integer, db.ForeignKey('hospital.id'), nullable=False)  # Corrected foreign key reference
+    hospital_id = db.Column(db.Integer, db.ForeignKey('hospital.id'), nullable=False)
     driver_name = db.Column(db.String(100), nullable=False)
     driver_phone = db.Column(db.String(15), nullable=False)
+    driver_email = db.Column(db.String(150), nullable=False)
     vehicle_number = db.Column(db.String(20), nullable=False)
     location_lat = db.Column(db.Float, nullable=False)
     location_lng = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(20), default='available', nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
+    # Relationships
     hospital = db.relationship('Hospital', back_populates='ambulances')
+    current_booking = db.relationship('Booking', backref='assigned_ambulance', uselist=False)
 
-    def get_address(self):
-        geolocator = Nominatim(user_agent="myGeocoder")
-        location = geolocator.reverse(f"{self.location_lat}, {self.location_lng}")
-        return location.address if location else "Unknown Location"
+
 

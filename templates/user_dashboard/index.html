@@ -4,118 +4,230 @@
 
 {% block content %}
 <style>
-
     /* Loader overlay */
     #loader-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7); /* Blackish overlay */
-            z-index: 9999;
-        }
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7); /* Blackish overlay */
+        z-index: 9999;
+    }
 
-        #loader {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            color: #FF4500; /* Orange-red */
-        }
+    #loader {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        color: #FF4500; /* Orange-red */
+    }
 
-        #loader .spinner-border {
-            width: 3rem;
-            height: 3rem;
-            border-width: 0.3rem;
-        }
+    #loader .spinner-border {
+        width: 3rem;
+        height: 3rem;
+        border-width: 0.3rem;
+    }
 
-        #loader p {
-            margin-top: 10px;
-            font-size: 18px;
-            color: white;
-        }
+    #loader p {
+        margin-top: 10px;
+        font-size: 18px;
+        color: white;
+    }
+
+    /* Hospital card styling */
+    .hospital-card {
+        border-radius: 15px; /* Softly rounded corners */
+        overflow: hidden;
+        transition: transform 0.3s, box-shadow 0.3s;
+        background-color: #ffffff; /* White background for clean look */
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+        border: none; /* Remove default border */
+    }
+
+    .hospital-card:hover {
+        transform: scale(1.05); /* Slightly enlarge on hover */
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2); /* Enhance shadow on hover */
+    }
+
+    .hospital-card .card-title {
+        font-size: 1.25rem; /* Slightly larger title */
+        font-weight: 700; /* Bold title */
+        color: #2c3e50; /* Dark color for title */
+    }
+
+    .hospital-card .card-text {
+        font-weight: 600; /* Bold text */
+        color: #7f8c8d; /* Muted color for text */
+    }
+
+    .hospital-card .card-text span {
+        font-weight: 700; /* Make bed count numbers bold */
+    }
+
+    .hospital-card .btn-danger {
+        background-color: #e74c3c; /* Red button for contrast */
+        border-color: #e74c3c; /* Match border with background */
+    }
+
+    .hospital-card .btn-danger:hover {
+        background-color: #c0392b; /* Darken button on hover */
+        border-color: #c0392b;
+    }
+
+    /* Custom scroll bar for hospital gallery */
+    #hospital-gallery {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(0, 0, 0, 0.5) transparent;
+    }
+
+    #hospital-gallery::-webkit-scrollbar {
+        height: 8px;
+    }
+
+    #hospital-gallery::-webkit-scrollbar-thumb {
+        background-color: rgba(0, 0, 0, 0.5);
+        border-radius: 10px;
+    }
+
+    .notification {
+    display: none; /* Hidden by default */
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: #28a745; /* Success background */
+    color: white;
+    padding: 15px;
+    border-radius: 5px;
+    z-index: 1000;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
+}
+
+.notification.show {
+    display: block;
+    opacity: 1;
+}
+
+.notification.error {
+    background-color: #dc3545; /* Error background */
+}
 
 </style>
 
 <main id="main" class="main">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <div class="pagetitle">
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-      <h1>Book Hospital Bed</h1>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <div class="pagetitle">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h1>Book Hospital Bed</h1>
+        </div>
+        <nav>
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('user_bp.dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item active">Book Bed</li>
+            </ol>
+        </nav>
+    </div><!-- End Page Title -->
+
+   <!-- Modal for ambulance confirmation -->
+<div class="modal fade" id="ambulanceModal" tabindex="-1" aria-labelledby="ambulanceModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+      <div class="modal-content">
+          <div class="modal-header">
+              <h5 class="modal-title" id="ambulanceModalLabel">Ambulance Service Confirmation</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+              <p>Do you need an ambulance service for your booking?</p>
+
+              <!-- Only show this section if the phone number is missing -->
+              <div id="phone-section" style="display:none;">
+                  <label for="phone">Please enter your phone number:</label>
+                  <input type="text" id="phone" class="form-control" placeholder="Enter your phone number">
+              </div>
+          </div>
+          <div class="modal-footer">
+              <button id="confirm-ambulance" type="button" class="btn btn-primary">Yes</button>
+              <button id="decline-ambulance" type="button" class="btn btn-secondary">No</button>
+          </div>
+      </div>
+  </div>
+</div>
+<!-- Notification container for success or error messages -->
+<div id="notification" class="notification"></div>
+
+
+    <!-- Location Permission Prompt -->
+    <div id="location-prompt">
+        <button onclick="getLocation()">Allow Location Access</button>
     </div>
-    <nav>
-      <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="{{ url_for('user_bp.dashboard') }}">Home</a></li>
-        <li class="breadcrumb-item active">Book Bed</li>
-      </ol>
-    </nav>
-  </div><!-- End Page Title -->
 
-  <!-- Location Permission Prompt -->
-  <div id="location-prompt">
-    <button onclick="getLocation()">Allow Location Access</button>
-  </div>
+    <!-- Current Location Display -->
+    <div id="current-location" style="display: none;">
+        <h3>Hi, You are here:</h3><br>
+        <p id="location-address" style="font-weight: bold; color: orangered; display: flex; align-items: center;">
+            <span style="font-size: 1.5em; margin-right: 8px;"><i class="fas fa-map-marker-alt"></i></span>
+            <span id="address-text"></span>
+        </p>
+    </div>
 
-  <!-- Current Location Display -->
-  <div id="current-location" style="display: none;">
-    <h3>Hi, You are here:</h3><br>
-    <p id="location-address" style="font-weight: bold; color: orangered; display: flex; align-items: center;">
-      <span style="font-size: 1.5em; margin-right: 8px;"><i class="fas fa-map-marker-alt"></i></span>
-      <span id="address-text"></span>
-    </p>
-  </div>
-  {% if current_bookings %}
-    <div class="alert alert-info">
-      <strong>Current Bookings:</strong>
-      <ul>
+ <!-- Display Current Bookings Section -->
+{% if current_bookings %}
+<div class="alert alert-info">
+    <strong>Current Bookings:</strong>
+    <ul>
         {% for booking in current_bookings %}
-          <li>
+        <li>
             Hospital: {{ booking.hospital.name }}<br>
             Bed Type: {{ booking.bed_type }}<br>
             Admission Code: {{ booking.admission_code }}<br>
             Distance: {{ booking.distance }} km<br>
             Booking Time: {{ booking.created_at.strftime('%Y-%m-%d %H:%M:%S') }}<br><br>
             <button onclick="cancelBooking({{ booking.id }})" class="btn btn-danger">Cancel Booking</button>
-          </li>
+        </li>
         {% endfor %}
-      </ul>
+    </ul>
+</div>
+{% else %}
+<p>No current bookings.</p>
+{% endif %}
+
+    <!-- Filter Form -->
+    <form id="filter-form">
+        <label for="bed-type">Filter by Bed Type:</label>
+        <select id="bed-type" name="bed_type" class="form-control w-50">
+            <option value="icu">ICU</option>
+            <option value="opd">OPD</option>
+            <option value="general">General</option>
+        </select>
+    </form>
+
+    <div id="hospital-gallery" class="d-flex flex-row flex-nowrap overflow-auto mt-4">
+        <!-- Hospital cards will be dynamically inserted here -->
     </div>
-  {% else %}
-    <p>No current bookings.</p>
-  {% endif %}
-  <!-- Filter Form -->
-  <form id="filter-form">
-    <label for="bed-type">Filter by Bed Type:</label>
-    <select id="bed-type" name="bed_type" class="form-control w-50">
-      <option value="icu">ICU</option>
-      <option value="opd">OPD</option>
-      <option value="general">General</option>
-    </select>
-  </form>
 
-  <div id="hospital-gallery" class="d-flex flex-row flex-nowrap overflow-auto mt-4">
-    <!-- Hospital cards will be dynamically inserted here -->
-
-  </div>
-<!-- Add loader HTML -->
-   <!-- Loader Overlay -->
-   <div id="loader-overlay">
-    <div id="loader">
-        <div class="spinner-border" role="status"></div>
-        <p>Reserving bed for you...</p>
+    <!-- Loader overlay -->
+    <div id="loader-overlay">
+        <div id="loader">
+            <div class="spinner-border text-light" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Processing your request...</p>
         </div>
     </div>
-  <!-- Map container -->
-  <div id="map" style="height: 500px; width: 100%; position: relative; margin-top: 20px;">
-    <!-- Relocate Button -->
-    <button id="relocate-button" onclick="relocate()" style="position: absolute; top: 10px; right: 10px; z-index: 1000;">Relocate</button>
-  </div> <!-- Map container for live ambulance tracking -->
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- Map container -->
+    <div id="map" style="height: 500px; width: 100%; position: relative; margin-top: 20px;">
+        <!-- Relocate Button -->
+        <button id="relocate-button" onclick="relocate()" style="position: absolute; top: 10px; right: 10px; z-index: 1000;">Relocate</button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
 
   <script>
     let selectedHospitalId = null;
@@ -124,7 +236,9 @@
     let map, marker;
     const locationAttempts = 3;
     let locations = [];
-
+    let userPhone = '';
+    // Global variable to track the most recent booking ID
+let mostRecentBookingId = null;
     function relocate() {
       if (markerLocation.lat !== 0 && markerLocation.lng !== 0) {
         map.setView([markerLocation.lat, markerLocation.lng], 13); // Adjust zoom level as needed
@@ -345,80 +459,7 @@ function saveAddressToProfile(location, address) {
       });
     });
 
-    function bookBed(hospitalId) {
-    selectedHospitalId = hospitalId;
-    // Show the ambulance service confirmation modal
-    $('#ambulanceModal').modal('show');
-}
-
-// Add event listeners for the ambulance confirmation buttons
-document.getElementById('confirm-ambulance').addEventListener('click', function () {
-    // User clicked "Yes" for ambulance service
-    document.getElementById('loader-overlay').style.display = 'block'; // Show loader
-
-    // Call book bed API with ambulance option
-    fetch('/book_bed', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            hospital_id: selectedHospitalId,
-            ambulance_required: true  // Include ambulance service
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        document.getElementById('loader-overlay').style.display = 'none'; // Hide loader
-
-        if (data.success) {
-            alert('Bed and ambulance booked successfully.');
-            location.reload(); // Reload the page to update the booking details
-        } else {
-            alert(data.message);
-        }
-    })
-    .catch(error => {
-        document.getElementById('loader-overlay').style.display = 'none'; // Hide loader
-        console.error('Error:', error);
-    });
-
-    $('#ambulanceModal').modal('hide'); // Close the modal after selection
-});
-
-document.getElementById('decline-ambulance').addEventListener('click', function () {
-    // User clicked "No" for ambulance service
-    document.getElementById('loader-overlay').style.display = 'block'; // Show loader
-
-    // Call book bed API without ambulance option
-    fetch('/book_bed', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            hospital_id: selectedHospitalId,
-            ambulance_required: false  // Exclude ambulance service
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        document.getElementById('loader-overlay').style.display = 'none'; // Hide loader
-
-        if (data.success) {
-            alert('Bed booked successfully.');
-            location.reload(); // Reload the page to update the booking details
-        } else {
-            alert(data.message);
-        }
-    })
-    .catch(error => {
-        document.getElementById('loader-overlay').style.display = 'none'; // Hide loader
-        console.error('Error:', error);
-    });
-
-    $('#ambulanceModal').modal('hide'); // Close the modal after selection
-});
+    
 
     function showWhatsAppNumberInput() {
         const whatsappNumber = prompt("Your registered phone number is not a WhatsApp number. Please enter your WhatsApp number:");
@@ -459,61 +500,179 @@ function savePhoneNumber(phone, callback) {
         }
     });
 }
+// Function to add a new booking dynamically
+// Function to handle bed booking
+function bookBed(hospitalId) {
+    selectedHospitalId = hospitalId;
+
+    if (!userPhone || userPhone === '') {
+        document.getElementById('phone-section').style.display = 'block';
+    } else {
+        document.getElementById('phone-section').style.display = 'none';
+    }
+
+    $('#ambulanceModal').modal('show');
+}
+
+// Event listener for confirming ambulance option (Yes)
+// Event listener for confirming ambulance option (Yes)
+document.getElementById('confirm-ambulance').addEventListener('click', function () {
+    const phone = document.getElementById('phone').value;
+    if (!phone) {
+        showNotification('Please enter your phone number.', true);
+        return;
+    }
+
+    userPhone = phone;  // Assign phone value
+    handleBookingRequest(true);  // Proceed with ambulance
+});
+
+// Event listener for confirming NO ambulance option (No)
+document.getElementById('decline-ambulance').addEventListener('click', function () {
+    const phone = document.getElementById('phone').value;
+    if (!phone) {
+        showNotification('Please enter your phone number.', true);
+        return;
+    }
+
+    userPhone = phone;  // Assign phone value
+    handleBookingRequest(false);  // Proceed without ambulance
+});
+
+// Updated fetch request to show success/error notification instead of alerts
+function handleBookingRequest(ambulanceRequired) {
+    document.getElementById('loader-overlay').style.display = 'block';  // Show loader
+
+    fetch('/book_bed', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            hospital_id: selectedHospitalId,
+            ambulance_required: ambulanceRequired,  // Use passed ambulance flag
+            phone: userPhone
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('loader-overlay').style.display = 'none';  // Hide loader after request
+        if (data.success) {
+            addBookingCard(data.booking);  // Dynamically add booking card to the current bookings
+            showNotification('Bed booked successfully!');  // Show success message
+            
+            // Track the most recent booking ID to avoid duplicate checks
+            mostRecentBookingId = data.booking.id;
+        } else {
+            if (data.message.includes('No ambulances available')) {
+                const proceedWithoutAmbulance = confirm(data.message);
+                if (proceedWithoutAmbulance) {
+                    // If user selects Yes, proceed with booking without ambulance
+                    fetch('/book_bed', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            hospital_id: selectedHospitalId,
+                            ambulance_required: false,
+                            phone: userPhone
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            addBookingCard(data.booking);  // Dynamically add booking card
+                            showNotification('Bed booked successfully without ambulance.');
+                            mostRecentBookingId = data.booking.id;  // Track the latest booking ID
+                        } else {
+                            showNotification(data.message, true);  // Show error message
+                        }
+                    });
+                } else {
+                    // If user selects No, stop the process and do nothing
+                    showNotification('Booking cancelled.', true);
+                }
+            } else {
+                showNotification(data.message, true);  // Show error message
+            }
+        }
+    })
+    .catch(error => {
+        document.getElementById('loader-overlay').style.display = 'none';  // Hide loader on error
+        console.error('Error:', error);
+        showNotification('An error occurred while processing your request.', true);  // Show error message
+    });
+
+    $('#ambulanceModal').modal('hide');
+}
+
+// Function to dynamically add a new booking card to the current bookings
+function addBookingCard(booking) {
+    let bookingList = document.querySelector('.alert ul');
+
+    if (bookingList) {
+        const bookingItem = document.createElement('li');
+        bookingItem.innerHTML = `
+            Hospital: ${booking.hospital_name}<br>
+            Bed Type: ${booking.bed_type}<br>
+            Admission Code: ${booking.admission_code}<br>
+            Distance: ${booking.distance} km<br>
+            Booking Time: ${booking.created_at}<br><br>
+            <button onclick="cancelBooking(${booking.id})" class="btn btn-danger">Cancel Booking</button>
+        `;
+        bookingList.appendChild(bookingItem);  // Append the new booking
+    } else {
+        const bookingSection = document.createElement('div');
+        bookingSection.classList.add('alert', 'alert-info');
+        bookingSection.innerHTML = `
+            <strong>Current Bookings:</strong>
+            <ul>
+                <li>
+                    Hospital: ${booking.hospital_name}<br>
+                    Bed Type: ${booking.bed_type}<br>
+                    Admission Code: ${booking.admission_code}<br>
+                    Distance: ${booking.distance} km<br>
+                    Booking Time: ${booking.created_at}<br><br>
+                    <button onclick="cancelBooking(${booking.id})" class="btn btn-danger">Cancel Booking</button>
+                </li>
+            </ul>
+        `;
+        document.querySelector('#main').insertBefore(bookingSection, document.querySelector('#hospital-gallery'));
+    }
+}
+
+// Prevent "Booking already exists" error
+function checkExistingBooking() {
+    // Assume this function is called during the booking process to check for existing bookings
+    // Ensure that we skip the most recent booking
+    if (mostRecentBookingId) {
+        // Modify the backend check to ignore this booking ID if needed
+        console.log(`Skipping booking ID: ${mostRecentBookingId}`);
+    }
+}
+
+// Function to show a notification message
+function showNotification(message, isError = false) {
+    const notification = document.getElementById('notification');
+    
+    // Set message and style
+    notification.textContent = message;
+    notification.classList.add('show');
+    
+    // Add error class if necessary
+    if (isError) {
+        notification.classList.add('error');
+    }
+
+    // Remove the notification after 3 seconds
+    setTimeout(() => {
+        notification.classList.remove('show');
+        notification.classList.remove('error');
+    }, 3000); // Hide after 3 seconds
+}
   </script>
-  <style>
- .hospital-card {
-    border-radius: 15px; /* Softly rounded corners */
-    overflow: hidden;
-    transition: transform 0.3s, box-shadow 0.3s;
-    background-color: #ffffff; /* White background for clean look */
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
-    border: none; /* Remove default border */
-}
 
-.hospital-card:hover {
-    transform: scale(1.05); /* Slightly enlarge on hover */
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2); /* Enhance shadow on hover */
-}
-
-.hospital-card .card-title {
-    font-size: 1.25rem; /* Slightly larger title */
-    font-weight: 700; /* Bold title */
-    color: #2c3e50; /* Dark color for title */
-}
-
-.hospital-card .card-text {
-    font-weight: 600; /* Bold text */
-    color: #7f8c8d; /* Muted color for text */
-}
-
-.hospital-card .card-text span {
-    font-weight: 700; /* Make bed count numbers bold */
-}
-
-.hospital-card .btn-danger {
-    background-color: #e74c3c; /* Red button for contrast */
-    border-color: #e74c3c; /* Match border with background */
-}
-
-.hospital-card .btn-danger:hover {
-    background-color: #c0392b; /* Darken button on hover */
-    border-color: #c0392b;
-}
-
-#hospital-gallery {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.5) transparent;
-}
-
-#hospital-gallery::-webkit-scrollbar {
-    height: 8px;
-}
-
-#hospital-gallery::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 0.5);
-    border-radius: 10px;
-}
-  </style>
 </main><!-- End #main -->
 
 {% endblock %}
