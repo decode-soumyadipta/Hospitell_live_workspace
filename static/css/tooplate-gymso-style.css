@@ -360,24 +360,71 @@ https://www.tooplate.com/view/2119-gymso-fitness
       text-decoration: none;
   }
 }
+/* Modal Header Styling */
 .modal-header {
   background-color: #ca0b0b;
   color: white;
+  border-bottom: none;
+  position: relative;
+  padding: 1rem 1.5rem;
+  border-top-left-radius: 0.3rem;
+  border-top-right-radius: 0.3rem;
+}
+
+/* Close button styling for better placement and cleaner look */
+.modal-header .close {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  color: white;
+  font-size: 1.5rem;
+  opacity: 0.8;
+  transition: opacity 0.3s;
+}
+
+.modal-header .close:hover {
+  opacity: 1;
+}
+
+/* Modal Body Styling */
+.modal-body {
+  padding: 20px;
+  font-size: 16px;
+  line-height: 1.6;
 }
 
 .modal-body p {
-  font-size: 16px;
   margin-bottom: 20px;
 }
 
+/* Call Ambulance Button Styling */
 .modal-body .btn-danger {
   background-color: #e90f0f;
+  color: white;
   border: none;
+  padding: 12px;
+  font-size: 16px;
+  margin-bottom: 15px;
 }
 
 .modal-body .btn-danger:hover {
   background-color: #c90404;
+  color:white;
 }
+
+/* Book Ambulance Button Styling */
+.modal-body .btn-primary {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 12px;
+  font-size: 16px;
+}
+
+.modal-body .btn-primary:hover {
+  background-color: #0056b3;
+}
+
   .navbar .social-icon li a {
     color: var(--white-color);
   }
