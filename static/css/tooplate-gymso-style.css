@@ -288,25 +288,78 @@ https://www.tooplate.com/view/2119-gymso-fitness
     color: var(--primary-color);
   }
  /* Emergency Button Style */
- .navbar-nav .emergency-btn {
-  background-color: #c00707;
-  color: white;
-  padding: 10px;
-  spacing: 10px;
-  border-radius: 25px;
+/* Align emergency button to the right */
+.emergency-nav {
+  position: relative;
+  margin-left: auto;
+  padding-bottom: 23px;
+  z-index: 999; /* Ensure button is on top of other elements */
+}
+
+/* Emergency button style on desktop view with permanent glowing effect */
+.emergency-btn {
+  color: red;
+  font-size: 1.0rem;
   font-weight: bold;
-  margin-left: 16px; /* To ensure proper spacing between buttons */
+  border: 2px solid #d1292980;
+  border-radius: 5px;
+  margin-bottom: 20px;
+  text-transform: uppercase;
+  background-color: transparent;
+  position: relative; /* Needed for the glow */
+  z-index: 999; /* Ensure glow is visible */
+  box-shadow: 0 0 10px rgba(255, 0, 0, 0.7), 0 0 20px rgba(255, 0, 0, 0.6); /* Permanent soft glow */
   transition: background-color 0.3s ease;
-  text-align: center;
-  display: block; 
-  line-height: 1.5;
+
+  /* Center the text and emoji */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+/* Glowing red animation (permanent but less intense) */
+@keyframes glowing {
+  0% {
+      box-shadow: 0 0 10px rgba(255, 0, 0, 0.7), 0 0 20px rgba(255, 0, 0, 0.6);
+  }
+  50% {
+      box-shadow: 0 0 15px rgba(255, 0, 0, 0.5), 0 0 25px rgba(255, 0, 0, 0.5), 0 0 35px rgba(255, 0, 0, 0.4);
+  }
+  100% {
+      box-shadow: 0 0 10px rgba(255, 0, 0, 0.7), 0 0 20px rgba(255, 0, 0, 0.6);
+  }
 }
 
-.navbar-nav .emergency-btn:hover {
-  background-color: #cc0000;
-  color: #fff;
+/* Apply the glowing animation permanently */
+.emergency-btn {
+  animation: glowing 2s infinite; /* Permanent subtle glow */
 }
 
+/* Mobile view: Emergency button in a top translucent banner */
+@media (max-width: 767px) {
+  .emergency-nav {
+      display: none; /* Hide the default emergency button on mobile */
+  }
+
+  .emergency-mobile-banner {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background-color: rgba(255, 0, 0, 0.214); /* Red with 80% opacity */
+      color: white;
+      text-align: center;
+      padding: 5px;
+      z-index: 9999; /* Ensure it's on top of other elements */
+      display: block;
+  }
+
+  .emergency-mobile-banner a {
+      color: white;
+      font-weight: bold;
+      font-size: 0.8rem;
+      text-decoration: none;
+  }
+}
 .modal-header {
   background-color: #ca0b0b;
   color: white;

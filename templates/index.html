@@ -56,10 +56,7 @@ https://www.tooplate.com/view/2119-gymso-fitness
                             <a href="{{ url_for('blogs') }}"
                                 class="nav-link smoothScroll">Blogs</a>
                         </li>
-                        <li class="nav-item">
-                            <a href="/#schedule"
-                                class="nav-link smoothScroll">Doctors</a>
-                        </li>
+                       
                         <li class="nav-item">
                             <a href="/#plans"
                                 class="nav-link smoothScroll">Departments</a>
@@ -73,16 +70,19 @@ https://www.tooplate.com/view/2119-gymso-fitness
                                 class="nav-link smoothScroll"
                                 style="color: greenyellow;">LOGIN</a>
                         </li>
+                        <!-- Emergency Button -->
+                        
+                    
                     </ul>
-                     <!-- Emergency Button -->
-                     <li class="nav-item emergency-nav">
+                    <li>
                         <a href="#emergencyModal"
                          class="nav-link emergency-btn" 
                          data-toggle="modal"
-                         style="color: red;">🚨 Emergency</a>
+                         >🚨Emergency</a>
                     </li>
-                </ul>
-
+                
+                     
+    
    
 
                     <ul class="social-icon ml-lg-3">
@@ -94,9 +94,21 @@ https://www.tooplate.com/view/2119-gymso-fitness
                                 target="_blank"></a></li>
 
                     </ul>
+                 
+                    
                     </div>
+                     <!-- Emergency Button -->
+       
+                    
+                 
             </div>
+         
+           
         </nav>
+        <!-- Emergency Button Banner for Mobile View -->
+<div class="emergency-mobile-banner">
+    <a href="#emergencyModal" data-toggle="modal">🚨 Emergency</a>
+</div>
 
                 <!-- Emergency Modal -->
     <div class="modal fade" id="emergencyModal" tabindex="-1" role="dialog" aria-labelledby="emergencyModalLabel" aria-hidden="true">
