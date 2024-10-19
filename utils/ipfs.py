@@ -1,28 +1,43 @@
 import requests
-from requests.auth import HTTPBasicAuth
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Kaleido IPFS API endpoint
+KALEIDO_IPFS_URL = "https://u0zivz3dd7-u0yb1q9rn5-ipfs.us0-aws.kaleido.io/api/v0/add"
+
+# App ID and Password for Kaleido's IPFS service
+KALEIDO_APP_ID = "u0h9j1qe7l"
+KALEIDO_APP_PASSWORD = "zs8iVJFnHup6pOHE2bSK1st0xWQXUcYlIO_X0CAIJ34"
 
 def upload_to_ipfs(file_path):
-    # Infura IPFS API endpoint
-    ipfs_url = 'https://ipfs.infura.io:5001/api/v0/add'
-    
-    # Your Infura Project ID and Project Secret
-    project_id = '5f78c1f4513942b48af470c516a08c5c'  # Replace with your Project ID
-    project_secret = 'B1k8qpxuNOm9gBCJ9aGxrh6thExpueZEzKnvJW5Jy2LtJ3IK+W8rbg'  # Replace with your Project Secret
-
     try:
         # Open the file in binary mode
         with open(file_path, 'rb') as file:
-            # Make a POST request to upload the file
+            # Set up authentication using Kaleido App ID and Password
+            auth = (KALEIDO_APP_ID, KALEIDO_APP_PASSWORD)
+
+            # Upload the file to Kaleido's IPFS service with the form entry 'path'
             response = requests.post(
-                ipfs_url,
-                files={'file': file},
-                auth=HTTPBasicAuth(project_id, project_secret)  # Add authentication
+                KALEIDO_IPFS_URL,
+                files={'path': file},  # Kaleido requires the form entry to be named 'path'
+                auth=auth  # Add authentication
             )
 
             # Check if the request was successful
             if response.status_code == 200:
-                # Return the hash of the uploaded file
-                return response.json()['Hash']
+                # Print the entire JSON response for debugging
+                print(f"Full response JSON: {response.json()}")
+
+                # Try to return the IPFS hash (CID) of the uploaded file
+                response_json = response.json()
+                if 'Hash' in response_json:
+                    return response_json['Hash']
+                else:
+                    print("Hash not found in the response.")
+                    return None
             else:
                 print(f"Failed to upload file to IPFS: {response.text}")
                 return None
@@ -31,3 +46,13 @@ def upload_to_ipfs(file_path):
         return None
 
 
+
+
+
+
+
+
+
+
+#KALEIDO_APP_ID = "u0h9j1qe7l"
+#KALEIDO_APP_PASSWORD = "zs8iVJFnHup6pOHE2bSK1st0xWQXUcYlIO_X0CAIJ34"

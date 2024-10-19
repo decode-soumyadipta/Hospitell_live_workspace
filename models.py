@@ -64,6 +64,8 @@ class User(UserMixin, db.Model):
     opd_appointments = db.relationship('OPDAppointment', back_populates='user', lazy=True)
       # Add this line to complete the relationship
     lab_test_bookings = db.relationship('LabTestBooking', back_populates='user')
+      # Relationship to the MedicalData model
+    medical_data = db.relationship('MedicalData', back_populates='user', lazy=True)
     
 
 class Userfg(UserMixin, db.Model):
@@ -377,3 +379,26 @@ class Ambulance(db.Model):
 
 
 
+class MedicalData(db.Model):
+    __tablename__ = 'medical_data'
+    
+    # Primary key - unique ID for each medical data entry
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # User ID of the person who uploaded the data, foreign key linking to the 'User' model
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    
+    # IPFS hash for the prescription file
+    prescription_hash = db.Column(db.String(255), nullable=False)
+    
+    # IPFS hash for the test results file
+    test_results_hash = db.Column(db.String(255), nullable=False)
+    
+    # Transaction hash for the blockchain transaction
+    tx_hash = db.Column(db.String(255), nullable=False)
+    
+    # Timestamp of when the data was uploaded
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship to the User model (back-populating the 'medical_data' field)
+    user = db.relationship('User', back_populates='medical_data')

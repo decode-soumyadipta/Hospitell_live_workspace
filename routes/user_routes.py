@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 import json
 from flask_login import login_required, current_user
-from models import Hospital, Booking, Rating, Bed, Ward, db, Department, Doctor, OPDAppointment, LabTestBooking, Hospital, Queue, DiagnosticDepartment, DiagnosticTest, Ambulance
+from models import Hospital, Booking, Rating, Bed, Ward, db, Department, Doctor, OPDAppointment, LabTestBooking, Hospital, Queue, DiagnosticDepartment, DiagnosticTest, Ambulance, MedicalData
 from sqlalchemy.orm import aliased
 from geopy.distance import great_circle
 import random
@@ -11,6 +11,11 @@ from flask_mail import Mail, Message  # Import Message here
 import os
 from datetime import datetime, timedelta
 from routes.hospital_routes import hospital_bp
+from utils.blockchain import store_data_on_blockchain
+from utils.ipfs import upload_to_ipfs
+from dotenv import load_dotenv
+import traceback
+load_dotenv()  # Load the .env file
 # Initialize Flask Blueprint
 user_bp = Blueprint('user_bp', __name__)
 # Initialize Flask-Mail
@@ -527,3 +532,128 @@ def get_departments(hospital_id):
 def doctor_details(doctor_id):
     doctor = Doctor.query.get_or_404(doctor_id)
     return render_template('user_dashboard/doctor_details.html', doctor=doctor)
+
+
+
+
+@user_bp.route('/upload_medical_data', methods=['GET', 'POST'])
+@login_required
+def upload_medical_data():
+    if request.method == 'POST':
+        # Get files from the form
+        prescription = request.files.get('prescription')
+        test_results = request.files.get('test_results')
+
+        if prescription and test_results:
+            try:
+                # Save files temporarily
+                prescription_filename = secure_filename(prescription.filename)
+                test_results_filename = secure_filename(test_results.filename)
+
+                prescription_path = os.path.join('medical_records_temp', prescription_filename)
+                test_results_path = os.path.join('medical_records_temp', test_results_filename)
+
+                prescription.save(prescription_path)
+                test_results.save(test_results_path)
+
+                # Upload files to IPFS
+                prescription_hash = upload_to_ipfs(prescription_path)
+                test_results_hash = upload_to_ipfs(test_results_path)
+
+                # Clean up the temporary files
+                os.remove(prescription_path)
+                os.remove(test_results_path)
+
+                if prescription_hash and test_results_hash:
+                    # Blockchain transaction: Store IPFS hashes on the blockchain
+                    try:
+                        # Call the function with only two arguments
+                        tx_hash = store_data_on_blockchain(prescription_hash, test_results_hash)
+
+                        # Save the data to the local database
+                        medical_data = MedicalData(
+                            user_id=current_user.id,
+                            prescription_hash=prescription_hash,
+                            test_results_hash=test_results_hash,
+                            tx_hash=tx_hash
+                        )
+                        db.session.add(medical_data)
+                        db.session.commit()
+
+                        flash('Medical data uploaded successfully!', 'success')
+                        return redirect(url_for('user_bp.upload_medical_data'))  # Redirect to the upload page to show history
+
+                    except Exception as e:
+                        # Roll back the session in case of failure
+                        db.session.rollback()
+                        flash(f'Blockchain transaction failed: {str(e)}', 'danger')
+                        traceback.print_exc()
+
+                else:
+                    flash('Failed to upload files to IPFS. Please try again.', 'danger')
+
+            except Exception as e:
+                # Handle any other exceptions
+                flash(f"An error occurred: {str(e)}", 'danger')
+                traceback.print_exc()
+
+        else:
+            flash('Please upload both files.', 'danger')
+
+    # Fetch the current user's uploaded medical data history to display
+    medical_data = MedicalData.query.filter_by(user_id=current_user.id).order_by(MedicalData.timestamp.desc()).all()
+    
+    return render_template('user_dashboard/upload_medical_data.html', medical_data=medical_data)
+
+
+
+#@user_bp.route('/upload_medical_data', methods=['GET', 'POST'])
+#@login_required
+#def upload_medical_data():
+#    if request.method == 'POST':
+#        # Get files from the form
+#        prescription = request.files.get('prescription')
+#        test_results = request.files.get('test_results')
+#
+#        if prescription and test_results:
+#            # Save files temporarily
+#            prescription_filename = secure_filename(prescription.filename)
+#            test_results_filename = secure_filename(test_results.filename)
+#            prescription_path = os.path.join('medical_records_temp', prescription_filename)
+#            test_results_path = os.path.join('medical_records_temp', test_results_filename)
+#            prescription.save(prescription_path)
+#            test_results.save(test_results_path)
+#
+#            # Upload files to IPFS (via Kaleido or local IPFS)
+#            prescription_hash = upload_to_ipfs(prescription_path)
+#            test_results_hash = upload_to_ipfs(test_results_path)
+#
+#            if prescription_hash and test_results_hash:
+#                # Store the IPFS hashes on the Kaleido blockchain
+#                private_key = os.getenv("PRIVATE_KEY")
+#                user_wallet_address = os.getenv("ETH_ADDRESS")  # This is your Ethereum address that will sign the transaction
+#
+#                try:
+#                    # Store the hashes on the blockchain
+#                    tx_hash = store_data_on_blockchain(user_wallet_address, prescription_hash, test_results_hash, private_key)
+#
+#                    # Save the hashes and transaction hash in the local database
+#                    medical_data = MedicalData(
+#                        user_id=current_user.id,
+#                        prescription_hash=prescription_hash,
+#                        test_results_hash=test_results_hash,
+#                        tx_hash=tx_hash
+#                    )
+#                    db.session.add(medical_data)
+#                    db.session.commit()
+#
+#                    flash('Medical data uploaded successfully!', 'success')
+#                    return redirect(url_for('user_bp.dashboard'))
+#                except Exception as e:
+#                    flash(f'Blockchain transaction failed: {str(e)}', 'danger')
+#            else:
+#                flash('Failed to upload files to IPFS.', 'danger')
+#        else:
+#            flash('Please upload both files.', 'danger')
+#
+#    return render_template('user_dashboard/upload_medical_data.html')

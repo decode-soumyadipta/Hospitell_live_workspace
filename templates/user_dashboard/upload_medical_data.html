@@ -20,10 +20,6 @@
           <div class="card-body">
             <h5 class="card-title">Upload Your Medical Files (Prescriptions, Test Results, etc.)</h5>
 
-            <!-- MetaMask Connect Button -->
-            <button id="connectMetamask" class="btn btn-info mb-3">Connect MetaMask</button>
-            <div id="walletAddress" class="alert alert-info" style="display: none;"></div>
-
             <!-- Upload Form -->
             <form id="medicalDataForm" method="POST" enctype="multipart/form-data" action="{{ url_for('user_bp.upload_medical_data') }}">
               <div class="form-group">
@@ -47,8 +43,9 @@
         <div class="card">
           <div class="card-body">
             <h5 class="card-title">Uploaded Medical Data History</h5>
+
             {% if medical_data %}
-              <table class="table table-bordered">
+              <table class="table table-bordered table-hover">
                 <thead>
                   <tr>
                     <th>#</th>
@@ -63,21 +60,35 @@
                   <tr>
                     <td>{{ loop.index }}</td>
                     <td>
-                      <a href="https://ipfs.io/ipfs/{{ data.prescription_hash }}" target="_blank">View Prescription</a>
+                      <a href="https://ipfs.io/ipfs/{{ data.prescription_hash }}" target="_blank" class="text-info">
+                        <i class="bi bi-file-earmark-medical"></i> View Prescription
+                      </a>
                     </td>
                     <td>
-                      <a href="https://ipfs.io/ipfs/{{ data.test_results_hash }}" target="_blank">View Test Results</a>
+                      <a href="https://ipfs.io/ipfs/{{ data.test_results_hash }}" target="_blank" class="text-info">
+                        <i class="bi bi-file-earmark-text"></i> View Test Results
+                      </a>
                     </td>
                     <td>
-                      <a href="https://sepolia.etherscan.io/tx/{{ data.tx_hash }}" target="_blank">{{ data.tx_hash[:10] }}...</a>
+                      <a href="https://sepolia.etherscan.io/tx/{{ data.tx_hash }}" target="_blank">
+                        {{ data.tx_hash[:10] }}... <i class="bi bi-box-arrow-up-right"></i>
+                      </a>
                     </td>
-                    <td>{{ data.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>
+                      <span data-bs-toggle="tooltip" title="{{ data.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}">
+                        {{ data.timestamp.strftime('%b %d, %Y') }} ({{ (now - data.timestamp).days }} days ago)
+                      </span>
+                    </td>
                   </tr>
                   {% endfor %}
                 </tbody>
               </table>
             {% else %}
-              <p>No medical data uploaded yet.</p>
+              <!-- Display this when no medical data has been uploaded -->
+              <div class="alert alert-warning text-center mt-4" role="alert">
+                <i class="bi bi-info-circle-fill"></i> 
+                No medical data uploaded yet. <a href="#medicalDataForm" class="alert-link">Upload your first medical file now!</a>
+              </div>
             {% endif %}
           </div>
         </div>
@@ -87,55 +98,12 @@
 </main>
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    console.log("DOM fully loaded and parsed");
-
-    const connectButton = document.getElementById('connectMetamask');
-    
-    if (connectButton) {
-        connectButton.addEventListener('click', function() {
-            console.log("Connect MetaMask button clicked");
-            connectMetamask();
-        });
-    } else {
-        console.error("Connect MetaMask button not found");
-    }
-
-    async function connectMetamask() {
-        if (window.ethereum) {
-            try {
-                // Request MetaMask account connection
-                const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
-                const walletAddress = accounts[0];  // Get the first wallet address
-                
-                // Show the connected wallet address
-                const walletAddressDiv = document.getElementById('walletAddress');
-                walletAddressDiv.style.display = 'block';
-                walletAddressDiv.innerHTML = `Connected Wallet: <strong>${walletAddress}</strong>`;
-
-                // Send the wallet address to your Flask backend (AJAX)
-                fetch('{{ url_for("user_bp.store_wallet_address") }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ address: walletAddress })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Wallet address saved:', data.message);
-                })
-                .catch((error) => {
-                    console.error('Error:', error);
-                });
-            } catch (error) {
-                console.error('User denied MetaMask connection:', error);
-            }
-        } else {
-            alert('Please install MetaMask to use this feature.');
-        }
-    }
-});
+  document.addEventListener('DOMContentLoaded', function() {
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl)
+    });
+  });
 </script>
 
 {% endblock %}
