@@ -172,8 +172,7 @@ https://www.tooplate.com/view/2119-gymso-fitness
     background: var(--primary-color);
     color: var(--white-color);
   }
-
-
+  
 
   /*---------------------------------------
      GENERAL               
@@ -288,7 +287,44 @@ https://www.tooplate.com/view/2119-gymso-fitness
   .nav-item .nav-link:hover {
     color: var(--primary-color);
   }
+ /* Emergency Button Style */
+ .navbar-nav .emergency-btn {
+  background-color: #c00707;
+  color: white;
+  padding: 10px;
+  spacing: 10px;
+  border-radius: 25px;
+  font-weight: bold;
+  margin-left: 16px; /* To ensure proper spacing between buttons */
+  transition: background-color 0.3s ease;
+  text-align: center;
+  display: block; 
+  line-height: 1.5;
+}
 
+.navbar-nav .emergency-btn:hover {
+  background-color: #cc0000;
+  color: #fff;
+}
+
+.modal-header {
+  background-color: #ca0b0b;
+  color: white;
+}
+
+.modal-body p {
+  font-size: 16px;
+  margin-bottom: 20px;
+}
+
+.modal-body .btn-danger {
+  background-color: #e90f0f;
+  border: none;
+}
+
+.modal-body .btn-danger:hover {
+  background-color: #c90404;
+}
   .navbar .social-icon li a {
     color: var(--white-color);
   }
@@ -357,7 +393,9 @@ https://www.tooplate.com/view/2119-gymso-fitness
   .navbar-toggler .navbar-toggler-icon::after {
     top: 8px;
   }
-
+ 
+  
+  
   /*---------------------------------------
      HERO              
   -----------------------------------------*/

@@ -74,6 +74,16 @@ https://www.tooplate.com/view/2119-gymso-fitness
                                 style="color: greenyellow;">LOGIN</a>
                         </li>
                     </ul>
+                     <!-- Emergency Button -->
+                     <li class="nav-item emergency-nav">
+                        <a href="#emergencyModal"
+                         class="nav-link emergency-btn" 
+                         data-toggle="modal"
+                         style="color: red;">🚨 Emergency</a>
+                    </li>
+                </ul>
+
+   
 
                     <ul class="social-icon ml-lg-3">
                         <li><a href="https://fb.com/rjrikirajdeep"
@@ -84,11 +94,30 @@ https://www.tooplate.com/view/2119-gymso-fitness
                                 target="_blank"></a></li>
 
                     </ul>
+                    </div>
+            </div>
+        </nav>
 
+                <!-- Emergency Modal -->
+    <div class="modal fade" id="emergencyModal" tabindex="-1" role="dialog" aria-labelledby="emergencyModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="emergencyModalLabel">Emergency Contact & Ambulance Booking</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
                 </div>
-
-            </nav>
-
+                <div class="modal-body">
+                    <p><strong>Emergency Hotline:</strong> +088 1999</p>
+                    <p><strong>Ambulance Service:</strong> Call now or click the button below to book an ambulance instantly.</p>
+                    <a href="tel:+0881999" class="btn btn-danger btn-block">Call Ambulance</a>
+                    <a href="/book-ambulance" class="btn btn-primary btn-block">Book Ambulance Online</a>
+                </div>
+            </div>
+        </div>
+    </div>      
+   
             <!-- HERO -->
             <section
                 class="hero d-flex flex-column justify-content-center align-items-center"
@@ -339,7 +368,7 @@ https://www.tooplate.com/view/2119-gymso-fitness
                                 referrerpolicy="no-referrer-when-downgrade"></iframe>
                         </div>
                     </div>
-
+                                 
                 </div>
             </div>
         </section>
