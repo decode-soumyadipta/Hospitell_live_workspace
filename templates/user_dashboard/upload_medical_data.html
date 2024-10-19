@@ -1,0 +1,141 @@
+{% extends "layout.html" %}
+{% block title %}Upload Medical Data{% endblock %}
+
+{% block content %}
+<main id="main" class="main">
+  <div class="pagetitle">
+    <h1>Upload Medical Data</h1>
+    <nav>
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('user_bp.dashboard') }}">Home</a></li>
+        <li class="breadcrumb-item active">Upload Medical Data</li>
+      </ol>
+    </nav>
+  </div>
+
+  <section class="section">
+    <div class="row">
+      <div class="col-lg-8">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Upload Your Medical Files (Prescriptions, Test Results, etc.)</h5>
+
+            <!-- MetaMask Connect Button -->
+            <button id="connectMetamask" class="btn btn-info mb-3">Connect MetaMask</button>
+            <div id="walletAddress" class="alert alert-info" style="display: none;"></div>
+
+            <!-- Upload Form -->
+            <form id="medicalDataForm" method="POST" enctype="multipart/form-data" action="{{ url_for('user_bp.upload_medical_data') }}">
+              <div class="form-group">
+                <label for="prescription">Prescription (PDF/Image):</label>
+                <input type="file" name="prescription" id="prescription" accept=".pdf,.jpg,.jpeg,.png" class="form-control" required>
+              </div>
+
+              <div class="form-group">
+                <label for="test_results">Test Results (PDF/Image):</label>
+                <input type="file" name="test_results" id="test_results" accept=".pdf,.jpg,.jpeg,.png" class="form-control" required>
+              </div>
+
+              <button type="submit" class="btn btn-primary mt-3">Upload</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Medical Data History -->
+      <div class="col-lg-8 mt-4">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Uploaded Medical Data History</h5>
+            {% if medical_data %}
+              <table class="table table-bordered">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Prescription</th>
+                    <th>Test Results</th>
+                    <th>Transaction Hash</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for data in medical_data %}
+                  <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>
+                      <a href="https://ipfs.io/ipfs/{{ data.prescription_hash }}" target="_blank">View Prescription</a>
+                    </td>
+                    <td>
+                      <a href="https://ipfs.io/ipfs/{{ data.test_results_hash }}" target="_blank">View Test Results</a>
+                    </td>
+                    <td>
+                      <a href="https://sepolia.etherscan.io/tx/{{ data.tx_hash }}" target="_blank">{{ data.tx_hash[:10] }}...</a>
+                    </td>
+                    <td>{{ data.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              <p>No medical data uploaded yet.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    console.log("DOM fully loaded and parsed");
+
+    const connectButton = document.getElementById('connectMetamask');
+    
+    if (connectButton) {
+        connectButton.addEventListener('click', function() {
+            console.log("Connect MetaMask button clicked");
+            connectMetamask();
+        });
+    } else {
+        console.error("Connect MetaMask button not found");
+    }
+
+    async function connectMetamask() {
+        if (window.ethereum) {
+            try {
+                // Request MetaMask account connection
+                const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+                const walletAddress = accounts[0];  // Get the first wallet address
+                
+                // Show the connected wallet address
+                const walletAddressDiv = document.getElementById('walletAddress');
+                walletAddressDiv.style.display = 'block';
+                walletAddressDiv.innerHTML = `Connected Wallet: <strong>${walletAddress}</strong>`;
+
+                // Send the wallet address to your Flask backend (AJAX)
+                fetch('{{ url_for("user_bp.store_wallet_address") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ address: walletAddress })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Wallet address saved:', data.message);
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                });
+            } catch (error) {
+                console.error('User denied MetaMask connection:', error);
+            }
+        } else {
+            alert('Please install MetaMask to use this feature.');
+        }
+    }
+});
+</script>
+
+{% endblock %}

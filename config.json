@@ -2,8 +2,8 @@
     "params":
     {
         "local_server":"True",
-        "local_uri": "mysql+pymysql://root:@localhost/fit-o-sphere",
-        "prod_uri": "mysql+pymysql://root:@localhost/fit-o-sphere",
+        "local_uri": "mysql+pymysql://root:@localhost/fit_o_sphere",
+        "prod_uri": "mysql+pymysql://root:@localhost/fit_o_sphere",
         "gmail-id":"soumyadiptadey7@gmail.com",
         "gmail-password":"wtfjunpbojyoyasn",
         "admin-user":"soumyadiptadey7@gmail.com",
@@ -11,7 +11,7 @@
         "upload_location": "C:\\Users\\dell\\OneDrive\\Desktop\\Hospitell_live_workspace\\static\\images",
         "mysql_user": "root",
         "mysql_password": "",
-        "mysql_db": "fit-o-sphere",
+        "mysql_db": "fit_o_sphere",
         "mysql_host": "localhost",
         "google_client_id": "78983541185-4ate9kdk3h77gtd0nu5bdi9ngvhet5tf.apps.googleusercontent.com",
         "google_client_secret": "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"
