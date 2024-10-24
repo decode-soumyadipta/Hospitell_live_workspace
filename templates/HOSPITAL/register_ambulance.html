@@ -1,8 +1,5 @@
-
-
 {% extends "HOSPITAL/hospital_base_layout.html" %}
 {% block title %}Register Ambulances{% endblock %}
-
 {% block content %}
 <main id="main" class="main">
   <div class="pagetitle">
@@ -14,60 +11,64 @@
       </ol>
     </nav>
   </div>
-
   <div class="container mt-4">
     <style>
-        /* Input styling for registration form */
-#ambulance-registration-form input {
-  border: 2px solid #007bff;
-  border-radius: 5px;
-  transition: border-color 0.3s;
-}
+      /* Input styling for registration form */
+      #ambulance-registration-form input {
+        border: 2px solid #007bff;
+        border-radius: 5px;
+        transition: border-color 0.3s;
+      }
+      #ambulance-registration-form input:focus {
+        border-color: #28a745;
+        box-shadow: 0 0 5px rgba(40, 167, 69, 0.5);
+      }
 
-#ambulance-registration-form input:focus {
-  border-color: #28a745;
-  box-shadow: 0 0 5px rgba(40, 167, 69, 0.5);
-}
+      /* Table styling for registered ambulances */
+      .table-responsive {
+        box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+      }
+      .table th, .table td {
+        padding: 15px;
+      }
+      .table thead {
+        background-color: #343a40;
+        color: white;
+      }
 
-/* Table styling for registered ambulances */
-.table-responsive {
-  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
-}
+      /* Custom styling for status rows */
+      .row-in-use {
+        background-color: #f8d7da !important; /* Light red background for 'in use' */
+        color: #721c24 !important;            /* Dark red text for 'in use' */
+        border-left: 8px solid #dc3545 !important;  /* Red left border */
+        font-weight: bold;
+      }
+      .row-active {
+        background-color: #d4edda !important; /* Light green background for 'available' */
+        color: #155724 !important;            /* Dark green text for 'available' */
+        border-left: 8px solid #28a745 !important;  /* Green left border */
+        font-weight: bold;
+      }
+      .row-not-active {
+        background-color: #e9ecef !important; /* Light gray background for 'not active' */
+        color: #6c757d !important;            /* Faded gray text for 'not active' */
+        border-left: 5px solid #adb5bd !important;  /* Gray left border */
+        font-weight: normal;
+        opacity: 0.8; /* Slightly faded text and elements */
+      }
 
-.table th, .table td {
-  padding: 15px;
-}
-
-.table thead {
-  background-color: #343a40;
-  color: white;
-}
-
-.table-striped tbody tr:nth-of-type(odd) {
-  background-color: #f3f3f3;
-}
-
-.table-striped tbody tr:nth-of-type(even) {
-  background-color: #fdfdfd;
-}
-
-.table .btn-warning, .table .btn-danger {
-  padding: 5px 10px;
-  border-radius: 20px;
-}
-
-.table .btn-warning:hover, .table .btn-danger:hover {
-  opacity: 0.8;
-}
-
-.text-primary {
-  color: #007bff !important;
-}
-
+      /* Override other possible table background conflicts */
+      .table tbody tr {
+        background-color: #fff !important; /* Reset background for all rows */
+      }
+      .table tbody tr:hover {
+        background-color: #f1f1f1 !important; /* Hover effect for all rows */
+      }
     </style>
+
     <!-- Ambulance Registration Form -->
     <div class="card p-4 shadow-lg">
-      <h3 class="text-center text-primary">Add New Ambulance</h3>
+      <h3 class="text-center text-primary">Add New Ambulance</h3><br>
       <form id="ambulance-registration-form" method="POST" action="{{ url_for('hospital_bp.register_ambulance') }}">
         <div class="row">
           <div class="col-md-6 mb-3">
@@ -89,9 +90,6 @@
             <input type="text" id="vehicle_number" name="vehicle_number" class="form-control" placeholder="Enter Vehicle Number" required>
           </div>
         </div>
-
-        <!-- Latitude and Longitude will be fetched automatically based on the hospital's location -->
-
         <div class="text-center">
           <button type="submit" class="btn btn-success w-50">Register Ambulance</button>
         </div>
@@ -100,7 +98,7 @@
 
     <!-- Registered Ambulances List -->
     <div class="mt-5">
-      <h3 class="text-center text-primary">Registered Ambulances</h3>
+      <h3 class="text-center text-primary">Registered Ambulances</h3><br>
       <div class="table-responsive">
         <table class="table table-striped table-bordered">
           <thead class="table-dark">
@@ -115,7 +113,7 @@
           </thead>
           <tbody>
             {% for ambulance in ambulances %}
-            <tr>
+            <tr class="{% if ambulance.status == 'in use' %}row-in-use{% elif ambulance.status == 'available' %}row-active{% elif ambulance.status == 'not active' %}row-not-active{% endif %}">
               <td>{{ ambulance.driver_name }}</td>
               <td>{{ ambulance.driver_phone }}</td>
               <td>{{ ambulance.driver_email }}</td>
@@ -124,7 +122,8 @@
                 <!-- Dropdown for ambulance status -->
                 <select class="form-select" onchange="updateStatus('{{ ambulance.id }}', this.value)">
                   <option value="available" {% if ambulance.status == 'available' %}selected{% endif %}>Active</option>
-                  <option value="not available" {% if ambulance.status == 'not available' %}selected{% endif %}>Not Active</option>
+                  <option value="in use" {% if ambulance.status == 'in use' %}selected{% endif %}>In Use</option>
+                  <option value="not active" {% if ambulance.status == 'not active' %}selected{% endif %}>Not Active</option>
                 </select>
               </td>
               <td>
@@ -155,6 +154,7 @@ function updateStatus(ambulanceId, status) {
   }).then(response => {
     if (response.ok) {
       alert('Status updated successfully.');
+      location.reload(); // Reload to update status and row background color
     } else {
       alert('Failed to update status.');
     }

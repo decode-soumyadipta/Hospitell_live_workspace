@@ -174,27 +174,25 @@
         </p>
     </div>
 
- <!-- Display Current Bookings Section -->
-{% if current_bookings %}
-<div class="alert alert-info">
+<!-- Display Current Bookings Section -->
+<div id="current-bookings-section" class="alert alert-info" style="display: {{ 'block' if current_bookings else 'none' }};">
     <strong>Current Bookings:</strong>
-    <ul>
+    <ul id="current-bookings-list">
         {% for booking in current_bookings %}
         <li>
             Hospital: {{ booking.hospital.name }}<br>
             Bed Type: {{ booking.bed_type }}<br>
             Admission Code: {{ booking.admission_code }}<br>
             Distance: {{ booking.distance }} km<br>
+            Ambulance Service: {{ 'Opted' if booking.ambulance_id else 'Not Opted' }}<br>
             Booking Time: {{ booking.created_at.strftime('%Y-%m-%d %H:%M:%S') }}<br><br>
             <button onclick="cancelBooking({{ booking.id }})" class="btn btn-danger">Cancel Booking</button>
         </li>
         {% endfor %}
     </ul>
 </div>
-{% else %}
-<p>No current bookings.</p>
-{% endif %}
-
+<!-- No Current Bookings Text -->
+<p id="no-bookings-text" style="display: {{ 'block' if not current_bookings else 'none' }};">No current bookings.</p>
     <!-- Filter Form -->
     <form id="filter-form">
         <label for="bed-type">Filter by Bed Type:</label>
@@ -208,7 +206,7 @@
     <div id="hospital-gallery" class="d-flex flex-row flex-nowrap overflow-auto mt-4">
         <!-- Hospital cards will be dynamically inserted here -->
     </div>
-
+    
     <!-- Loader overlay -->
     <div id="loader-overlay">
         <div id="loader">
@@ -229,66 +227,86 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
 
-  <script>
-    let selectedHospitalId = null;
-    let userLocation = { lat: 0, lng: 0 };
-    let markerLocation = { lat: 0, lng: 0 };
-    let map, marker;
-    const locationAttempts = 3;
-    let locations = [];
-    let userPhone = '';
+    <script>
+        let selectedHospitalId = null;
+        let userLocation = { lat: 0, lng: 0 };
+        let markerLocation = { lat: 0, lng: 0 };
+        let map, marker;
+        const locationAttempts = 3;
+        let locations = [];
+        let userPhone = '';
     // Global variable to track the most recent booking ID
-let mostRecentBookingId = null;
-    function relocate() {
-      if (markerLocation.lat !== 0 && markerLocation.lng !== 0) {
+        let mostRecentBookingId = null;
+    
+        function relocate() {
+          if (markerLocation.lat !== 0 && markerLocation.lng !== 0) {
         map.setView([markerLocation.lat, markerLocation.lng], 13); // Adjust zoom level as needed
-      } else {
-        alert("Current location is not available.");
-      }
-    }
-
-    function getLocation(attempt = 1) {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(position) {
-          locations.push({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            accuracy: position.coords.accuracy
-          });
-
-          if (attempt < locationAttempts) {
-            getLocation(attempt + 1);
           } else {
-            // Calculate average location
-            const avgLat = locations.reduce((sum, loc) => sum + loc.lat, 0) / locations.length;
-            const avgLng = locations.reduce((sum, loc) => sum + loc.lng, 0) / locations.length;
-            userLocation = { lat: avgLat, lng: avgLng };
-            localStorage.setItem('user_location', JSON.stringify(userLocation));
-            displayCurrentLocation(userLocation);
+            alert("Current location is not available.");
           }
-        }, showError, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
-      } else {
-        alert("Geolocation is not supported by this browser.");
-      }
-    }
-
-    function showError(error) {
-      switch (error.code) {
+        }
+    
+        function getLocation(attempt = 1) {
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+              locations.push({
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+                accuracy: position.coords.accuracy
+              });
+    
+              if (attempt < locationAttempts) {
+                getLocation(attempt + 1);
+              } else {
+                const avgLat = locations.reduce((sum, loc) => sum + loc.lat, 0) / locations.length;
+                const avgLng = locations.reduce((sum, loc) => sum + loc.lng, 0) / locations.length;
+                userLocation = { lat: avgLat, lng: avgLng };
+                localStorage.setItem('user_location', JSON.stringify(userLocation));
+                displayCurrentLocation(userLocation);
+              }
+            }, showError, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+          } else {
+            alert("Geolocation is not supported by this browser.");
+          }
+        }
+    
+        function showError(error) {
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              alert("User denied the request for Geolocation.");
+              break;
+            case error.POSITION_UNAVAILABLE:
+              alert("Location information is unavailable.");
+              break;
+            case error.TIMEOUT:
+              alert("The request to get user location timed out.");
+              break;
+            case error.UNKNOWN_ERROR:
+              alert("An unknown error occurred.");
+              break;
+          }
+        }
+    
+        // Function to show error messages based on geolocation errors
+function showError(error) {
+    switch (error.code) {
         case error.PERMISSION_DENIED:
-          alert("User denied the request for Geolocation.");
-          break;
+            alert("User denied the request for Geolocation.");
+            break;
         case error.POSITION_UNAVAILABLE:
-          alert("Location information is unavailable.");
-          break;
+            alert("Location information is unavailable.");
+            break;
         case error.TIMEOUT:
-          alert("The request to get user location timed out.");
-          break;
+            alert("The request to get user location timed out.");
+            break;
         case error.UNKNOWN_ERROR:
-          alert("An unknown error occurred.");
-          break;
-      }
+            alert("An unknown error occurred.");
+            break;
     }
-    function cancelBooking(bookingId) {
+}
+
+// Function to cancel a booking
+function cancelBooking(bookingId) {
     fetch(`/cancel_booking/${bookingId}`, {
         method: 'POST',
         headers: {
@@ -306,7 +324,9 @@ let mostRecentBookingId = null;
     })
     .catch(error => console.error('Error:', error));
 }
-    function fetchHospitalData(bedType, location) {
+
+// Function to fetch hospitals based on bed type and location
+function fetchHospitalData(bedType, location) {
     fetch('/nearby_hospitals', {
         method: 'POST',
         headers: {
@@ -323,186 +343,239 @@ let mostRecentBookingId = null;
         let gallery = document.getElementById('hospital-gallery');
         gallery.innerHTML = ''; // Clear previous content
 
-        data.forEach(hospital => {
-    let card = document.createElement('div');
-    card.classList.add('card', 'shadow-lg', 'm-3', 'hospital-card', 'border-0');
-    card.style.width = '20rem';
-    card.style.borderRadius = '15px'; // Rounded corners
+        // Sort hospitals based on the selected bed type
+        const sortedHospitals = data.sort((a, b) => {
+            return b[`vacant_${bedType}_beds`] - a[`vacant_${bedType}_beds`]; // Sort in descending order
+        });
 
+        sortedHospitals.forEach(hospital => {
+            let card = document.createElement('div');
+            card.classList.add('card', 'shadow-lg', 'm-3', 'hospital-card', 'border-0');
+            card.style.width = '20rem';
+            card.style.borderRadius = '15px'; // Rounded corners
 
-    
-    card.innerHTML = `
-    <div class="card-body p-4">
-        <h5 class="card-title text-primary font-weight-bold">${hospital.name}</h5>
-        <p class="card-text font-weight-bold">Distance: ${hospital.distance} km</p>
-        <p class="card-text font-weight-bold">ICU Beds: <span class="text-success">${hospital.vacant_icu_beds}</span></p>
-        <p class="card-text font-weight-bold">OPD Beds: <span class="text-warning">${hospital.vacant_opd_beds}</span></p>
-        <p class="card-text font-weight-bold">General Beds: <span class="text-info">${hospital.vacant_general_beds}</span></p>
-        <button class="btn btn-danger mt-3 w-100 font-weight-bold" onclick="bookBed(${hospital.id})">Book Now</button>
-    </div>
-  `
-;
+            card.innerHTML = `
+                <div class="card-body p-4">
+                    <h5 class="card-title text-primary font-weight-bold">${hospital.name}</h5>
+                    <p class="card-text font-weight-bold">Distance: ${hospital.distance} km</p>
+                    <p class="card-text font-weight-bold">ICU Beds: <span class="text-success">${hospital.vacant_icu_beds}</span></p>
+                    <p class="card-text font-weight-bold">OPD Beds: <span class="text-warning">${hospital.vacant_opd_beds}</span></p>
+                    <p class="card-text font-weight-bold">General Beds: <span class="text-info">${hospital.vacant_general_beds}</span></p>
+                    <p class="card-text font-weight-bold">Contact: ${hospital.contact_info}</p>
+                    <button class="btn btn-danger mt-3 w-100 font-weight-bold" onclick="bookBed(${hospital.id})">Book Now</button>
+                </div>
+            `;
 
+            gallery.appendChild(card);
 
-    gallery.appendChild(card);
-                
             // Add hospital markers on the map
             L.marker([hospital.latitude, hospital.longitude], {icon: createBedIcon(hospital)})
-              .addTo(map)
-              .bindPopup(`<b>${hospital.name}</b><br>
-                          Vacant ICU Beds: ${hospital.vacant_icu_beds}<br>
-                          Vacant OPD Beds: ${hospital.vacant_opd_beds}<br>
-                          Vacant General Beds: ${hospital.vacant_general_beds}`)
-              .openPopup();
+                .addTo(map)
+                .bindPopup(`<b>${hospital.name}</b><br>
+                            Vacant ICU Beds: ${hospital.vacant_icu_beds}<br>
+                            Vacant OPD Beds: ${hospital.vacant_opd_beds}<br>
+                            Vacant General Beds: ${hospital.vacant_general_beds}`)
+                .openPopup();
         });
+    })
+    .catch(error => {
+        console.error('Error fetching hospitals:', error);
+        gallery.innerHTML = '<p>Failed to load hospitals. Please try again.</p>';
     });
 }
 
+// Function to handle bed type change and fetch sorted hospitals
+document.getElementById('bed-type').addEventListener('change', function() {
+    const selectedBedType = this.value;
 
-function createBedIcon(hospital) {
-    let totalBeds = hospital.vacant_icu_beds + hospital.vacant_opd_beds + hospital.vacant_general_beds;
-    let bedColor = 'green'; // default to green if beds are available
+    // Show loader or clear current content during the request
+    const gallery = document.getElementById('hospital-gallery');
+    gallery.innerHTML = '<p>Loading hospitals...</p>';
 
-    if (totalBeds === 0) {
-        bedColor = 'red'; // no beds available
-    }
-
-    return L.divIcon({
-        className: 'custom-bed-icon',
-        html: `<div style="background-color: ${bedColor}; width: 20px; height: 20px; border-radius: 50%;"></div>`
-    });
-}
-
-function displayCurrentLocation(location) {
-    if (!map) {
-        map = L.map('map').setView([location.lat, location.lng], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
-
-        marker = L.marker([location.lat, location.lng], { draggable: true })
-            .addTo(map)
-            .bindPopup('Loading address...')
-            .openPopup();
-
-        marker.on('dragend', function (e) {
-            const newLatLng = marker.getLatLng();
-            userLocation = { lat: newLatLng.lat, lng: newLatLng.lng };
-            markerLocation = userLocation;
-            localStorage.setItem('user_location', JSON.stringify(userLocation));
-            fetchHospitalData(document.getElementById('bed-type').value, userLocation);
-            updateAddress(userLocation);
-        });
-
-    } else {
-        map.setView([location.lat, location.lng], 13);
-        marker.setLatLng([location.lat, location.lng]).update();
-        updateAddress(location);
-    }
-
-    markerLocation = location;
-
-    // Initial address update
-    updateAddress(location);
-    fetchHospitalData(document.getElementById('bed-type').value, userLocation);
-}
-
-function updateAddress(location) {
-    fetch(`https://nominatim.openstreetmap.org/reverse?lat=${location.lat}&lon=${location.lng}&format=json`)
-        .then(response => response.json())
-        .then(data => {
-            const address = data.display_name;
-            marker.bindPopup(`<b>Your Current Location</b><br>${address}`).openPopup();
-            document.getElementById('address-text').innerText = address;
-
-            // Save the address to the user's profile
-            saveAddressToProfile(location, address);
-        });
-}
-
-function saveAddressToProfile(location, address) {
-    fetch('/save_address', {
+    // Send AJAX request to fetch hospitals sorted by the selected bed type
+    fetch('/filter_hospitals', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-            location: `${location.lat},${location.lng}`,
-            address: address
-        })
+        body: JSON.stringify({ bed_type: selectedBedType })
     })
     .then(response => response.json())
-    .then(data => {
-        if (!data.success) {
-            alert('Failed to save your address.');
-        }
+    .then(hospitals => {
+        // Clear the gallery and remove loader
+        gallery.innerHTML = '';
+
+        // Sort hospitals based on the selected bed type
+        const sortedHospitals = hospitals.sort((a, b) => {
+            return b[`vacant_${selectedBedType}_beds`] - a[`vacant_${selectedBedType}_beds`]; // Sort in descending order
+        });
+
+        // Render the sorted hospital cards
+        sortedHospitals.forEach(hospital => {
+            const card = document.createElement('div');
+            card.classList.add('card', 'm-2');
+            card.style.width = '18rem';
+
+            card.innerHTML = `
+                <div class="card-body p-4">
+                    <h5 class="card-title text-primary font-weight-bold">${hospital.name}</h5>
+                    <p class="card-text font-weight-bold">ICU Beds: <span class="text-success">${hospital.vacant_icu_beds}</span></p>
+                    <p class="card-text font-weight-bold">OPD Beds: <span class="text-warning">${hospital.vacant_opd_beds}</span></p>
+                    <p class="card-text font-weight-bold">General Beds: <span class="text-info">${hospital.vacant_general_beds}</span></p>
+                    <p class="card-text font-weight-bold">Contact: ${hospital.contact_info}</p>
+                    <button class="btn btn-danger mt-3 w-100 font-weight-bold" onclick="bookBed(${hospital.id})">Book Now</button>
+                </div>
+            `;
+
+            gallery.appendChild(card);
+        });
     })
-    .catch(error => console.error('Error:', error));
-}
-
-
-    document.addEventListener('DOMContentLoaded', function () {
-      let storedLocation = localStorage.getItem('user_location');
-      if (storedLocation) {
-        userLocation = JSON.parse(storedLocation);
-        document.getElementById('location-prompt').style.display = 'none';
-        document.getElementById('current-location').style.display = 'block';
-        displayCurrentLocation(userLocation);
-      } else {
-        getLocation();
-      }
-
-      document.getElementById('bed-type').addEventListener('change', function () {
-        if (userLocation.lat !== 0 && userLocation.lng !== 0) {
-          fetchHospitalData(this.value, userLocation);
-        }
-      });
+    .catch(error => {
+        console.error('Error fetching hospitals:', error);
+        gallery.innerHTML = '<p>Failed to load hospitals. Please try again.</p>';
     });
-
+});
     
-
-    function showWhatsAppNumberInput() {
-        const whatsappNumber = prompt("Your registered phone number is not a WhatsApp number. Please enter your WhatsApp number:");
-        if (whatsappNumber) {
-            fetch('/update_whatsapp_number', {
+        function createBedIcon(hospital) {
+          let totalBeds = hospital.vacant_icu_beds + hospital.vacant_opd_beds + hospital.vacant_general_beds;
+          let bedColor = 'green'; // Default to green if beds are available
+    
+          if (totalBeds === 0) {
+              bedColor = 'red'; // No beds available
+          }
+    
+          return L.divIcon({
+              className: 'custom-bed-icon',
+              html: `<div style="background-color: ${bedColor}; width: 20px; height: 20px; border-radius: 50%;"></div>`
+          });
+        }
+    
+        function displayCurrentLocation(location) {
+          if (!map) {
+              map = L.map('map').setView([location.lat, location.lng], 13);
+              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              }).addTo(map);
+    
+              marker = L.marker([location.lat, location.lng], { draggable: true })
+                  .addTo(map)
+                  .bindPopup('Loading address...')
+                  .openPopup();
+    
+              marker.on('dragend', function (e) {
+                  const newLatLng = marker.getLatLng();
+                  userLocation = { lat: newLatLng.lat, lng: newLatLng.lng };
+                  markerLocation = userLocation;
+                  localStorage.setItem('user_location', JSON.stringify(userLocation));
+                  fetchHospitalData(document.getElementById('bed-type').value, userLocation);
+                  updateAddress(userLocation);
+              });
+    
+          } else {
+              map.setView([location.lat, location.lng], 13);
+              marker.setLatLng([location.lat, location.lng]).update();
+              updateAddress(location);
+          }
+    
+          markerLocation = location;
+    
+          // Initial address update
+          updateAddress(location);
+          fetchHospitalData(document.getElementById('bed-type').value, userLocation);
+        }
+    
+        function updateAddress(location) {
+          fetch(`https://nominatim.openstreetmap.org/reverse?lat=${location.lat}&lon=${location.lng}&format=json`)
+              .then(response => response.json())
+              .then(data => {
+                  const address = data.display_name;
+                  marker.bindPopup(`<b>Your Current Location</b><br>${address}`).openPopup();
+                  document.getElementById('address-text').innerText = address;
+    
+                  // Save the address to the user's profile
+                  saveAddressToProfile(location, address);
+              });
+        }
+    
+        function saveAddressToProfile(location, address) {
+          fetch('/save_address', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                  location: `${location.lat},${location.lng}`,
+                  address: address
+              })
+          })
+          .then(response => response.json())
+          .then(data => {
+              if (!data.success) {
+                  alert('Failed to save your address.');
+              }
+          })
+          .catch(error => console.error('Error:', error));
+        }
+    
+        document.addEventListener('DOMContentLoaded', function () {
+          let storedLocation = localStorage.getItem('user_location');
+          if (storedLocation) {
+            userLocation = JSON.parse(storedLocation);
+            document.getElementById('location-prompt').style.display = 'none';
+            document.getElementById('current-location').style.display = 'block';
+            displayCurrentLocation(userLocation);
+          } else {
+            getLocation();
+          }
+    
+          document.getElementById('bed-type').addEventListener('change', function () {
+            if (userLocation.lat !== 0 && userLocation.lng !== 0) {
+              fetchHospitalData(this.value, userLocation);
+            }
+          });
+        });
+    
+        function showWhatsAppNumberInput() {
+            const whatsappNumber = prompt("Your registered phone number is not a WhatsApp number. Please enter your WhatsApp number:");
+            if (whatsappNumber) {
+                fetch('/update_whatsapp_number', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `whatsapp_number=${encodeURIComponent(whatsappNumber)}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                    } else {
+                        alert(data.message || "Failed to update WhatsApp number.");
+                    }
+                });
+            }
+        }
+    
+        function savePhoneNumber(phone, callback) {
+            fetch('/save_phone_number', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Content-Type': 'application/json',
                 },
-                body: `whatsapp_number=${encodeURIComponent(whatsappNumber)}`
+                body: JSON.stringify({ phone: phone })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert(data.message);
+                    alert("Phone number saved successfully.");
+                    callback();
                 } else {
-                    alert(data.message || "Failed to update WhatsApp number.");
+                    alert("Failed to save phone number.");
                 }
             });
         }
-    }
-
-function savePhoneNumber(phone, callback) {
-    fetch('/save_phone_number', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phone: phone })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert("Phone number saved successfully.");
-            callback();
-        } else {
-            alert("Failed to save phone number.");
-        }
-    });
-}
-// Function to add a new booking dynamically
-// Function to handle bed booking
-function bookBed(hospitalId) {
+    
+        function bookBed(hospitalId) {
     selectedHospitalId = hospitalId;
 
     if (!userPhone || userPhone === '') {
@@ -515,7 +588,6 @@ function bookBed(hospitalId) {
 }
 
 // Event listener for confirming ambulance option (Yes)
-// Event listener for confirming ambulance option (Yes)
 document.getElementById('confirm-ambulance').addEventListener('click', function () {
     const phone = document.getElementById('phone').value;
     if (!phone) {
@@ -523,8 +595,8 @@ document.getElementById('confirm-ambulance').addEventListener('click', function 
         return;
     }
 
-    userPhone = phone;  // Assign phone value
-    handleBookingRequest(true);  // Proceed with ambulance
+    userPhone = phone;
+    handleBookingRequest(true);
 });
 
 // Event listener for confirming NO ambulance option (No)
@@ -535,13 +607,13 @@ document.getElementById('decline-ambulance').addEventListener('click', function 
         return;
     }
 
-    userPhone = phone;  // Assign phone value
-    handleBookingRequest(false);  // Proceed without ambulance
+    userPhone = phone;
+    handleBookingRequest(false);
 });
 
-// Updated fetch request to show success/error notification instead of alerts
+// Updated function to handle the booking request
 function handleBookingRequest(ambulanceRequired) {
-    document.getElementById('loader-overlay').style.display = 'block';  // Show loader
+    document.getElementById('loader-overlay').style.display = 'block';
 
     fetch('/book_bed', {
         method: 'POST',
@@ -550,24 +622,22 @@ function handleBookingRequest(ambulanceRequired) {
         },
         body: JSON.stringify({
             hospital_id: selectedHospitalId,
-            ambulance_required: ambulanceRequired,  // Use passed ambulance flag
+            ambulance_required: ambulanceRequired,
             phone: userPhone
         })
     })
     .then(response => response.json())
     .then(data => {
-        document.getElementById('loader-overlay').style.display = 'none';  // Hide loader after request
+        document.getElementById('loader-overlay').style.display = 'none';
+
         if (data.success) {
-            addBookingCard(data.booking);  // Dynamically add booking card to the current bookings
+            addBookingCard(data.booking, ambulanceRequired);  // Dynamically add booking card to the current bookings
             showNotification('Bed booked successfully!');  // Show success message
-            
-            // Track the most recent booking ID to avoid duplicate checks
             mostRecentBookingId = data.booking.id;
         } else {
             if (data.message.includes('No ambulances available')) {
                 const proceedWithoutAmbulance = confirm(data.message);
                 if (proceedWithoutAmbulance) {
-                    // If user selects Yes, proceed with booking without ambulance
                     fetch('/book_bed', {
                         method: 'POST',
                         headers: {
@@ -582,15 +652,14 @@ function handleBookingRequest(ambulanceRequired) {
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
-                            addBookingCard(data.booking);  // Dynamically add booking card
+                            addBookingCard(data.booking, false);  // Dynamically add booking card
                             showNotification('Bed booked successfully without ambulance.');
-                            mostRecentBookingId = data.booking.id;  // Track the latest booking ID
+                            mostRecentBookingId = data.booking.id;
                         } else {
                             showNotification(data.message, true);  // Show error message
                         }
                     });
                 } else {
-                    // If user selects No, stop the process and do nothing
                     showNotification('Booking cancelled.', true);
                 }
             } else {
@@ -608,48 +677,57 @@ function handleBookingRequest(ambulanceRequired) {
 }
 
 // Function to dynamically add a new booking card to the current bookings
-function addBookingCard(booking) {
-    let bookingList = document.querySelector('.alert ul');
+function addBookingCard(booking, ambulanceRequired) {
+    let bookingList = document.getElementById('current-bookings-list');
+    let noBookingsText = document.getElementById('no-bookings-text');
+    let currentBookingsSection = document.getElementById('current-bookings-section');
 
-    if (bookingList) {
-        const bookingItem = document.createElement('li');
-        bookingItem.innerHTML = `
-            Hospital: ${booking.hospital_name}<br>
-            Bed Type: ${booking.bed_type}<br>
-            Admission Code: ${booking.admission_code}<br>
-            Distance: ${booking.distance} km<br>
-            Booking Time: ${booking.created_at}<br><br>
-            <button onclick="cancelBooking(${booking.id})" class="btn btn-danger">Cancel Booking</button>
-        `;
-        bookingList.appendChild(bookingItem);  // Append the new booking
-    } else {
-        const bookingSection = document.createElement('div');
-        bookingSection.classList.add('alert', 'alert-info');
-        bookingSection.innerHTML = `
-            <strong>Current Bookings:</strong>
-            <ul>
-                <li>
-                    Hospital: ${booking.hospital_name}<br>
-                    Bed Type: ${booking.bed_type}<br>
-                    Admission Code: ${booking.admission_code}<br>
-                    Distance: ${booking.distance} km<br>
-                    Booking Time: ${booking.created_at}<br><br>
-                    <button onclick="cancelBooking(${booking.id})" class="btn btn-danger">Cancel Booking</button>
-                </li>
-            </ul>
-        `;
-        document.querySelector('#main').insertBefore(bookingSection, document.querySelector('#hospital-gallery'));
+    // Hide "No current bookings" text when a new booking is added
+    if (noBookingsText) {
+        noBookingsText.style.display = 'none';
     }
+
+    // Ensure the current bookings section is visible
+    if (currentBookingsSection) {
+        currentBookingsSection.style.display = 'block';
+    }
+
+    // Determine the ambulance service status
+    const ambulanceServiceStatus = ambulanceRequired ? 'Opted' : 'Not Opted';
+
+    // Create new booking item and append it to the booking list
+    const bookingItem = document.createElement('li');
+    bookingItem.innerHTML = `
+        Hospital: ${booking.hospital_name}<br>
+        Bed Type: ${booking.bed_type}<br>
+        Admission Code: ${booking.admission_code}<br>
+        Distance: ${booking.distance} km<br>
+        Ambulance Service: ${ambulanceServiceStatus}<br>
+        Booking Time: ${booking.created_at}<br><br>
+        <button onclick="cancelBooking(${booking.id})" class="btn btn-danger">Cancel Booking</button>
+    `;
+    
+    bookingList.appendChild(bookingItem);  // Append the new booking
 }
 
-// Prevent "Booking already exists" error
-function checkExistingBooking() {
-    // Assume this function is called during the booking process to check for existing bookings
-    // Ensure that we skip the most recent booking
-    if (mostRecentBookingId) {
-        // Modify the backend check to ignore this booking ID if needed
-        console.log(`Skipping booking ID: ${mostRecentBookingId}`);
-    }
+// Function to cancel booking (already implemented)
+function cancelBooking(bookingId) {
+    fetch(`/cancel_booking/${bookingId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Booking cancelled successfully.');
+            location.reload(); // Reload the page to update bookings
+        } else {
+            alert('Failed to cancel the booking.');
+        }
+    })
+    .catch(error => console.error('Error:', error));
 }
 
 // Function to show a notification message
@@ -671,7 +749,9 @@ function showNotification(message, isError = false) {
         notification.classList.remove('error');
     }, 3000); // Hide after 3 seconds
 }
-  </script>
+
+    </script>
+    
 
 </main><!-- End #main -->
 

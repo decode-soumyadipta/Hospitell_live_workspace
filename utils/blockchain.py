@@ -10,7 +10,6 @@ load_dotenv()
 KALEIDO_RPC_URL = os.getenv("KALEIDO_RPC_URL")  # Make sure this is in your .env file
 CONTRACT_ADDRESS = os.getenv("CONTRACT_ADDRESS")  # Smart contract address on Kaleido
 PRIVATE_KEY = os.getenv("PRIVATE_KEY")  # Your private key (used to sign transactions)
-USER_ADDRESS = os.getenv("USER_ADDRESS")  # Your Ethereum wallet address (public)
 
 # Connect to Kaleido blockchain using Web3
 w3 = Web3(Web3.HTTPProvider(KALEIDO_RPC_URL))
@@ -25,6 +24,11 @@ with open('utils/ABI.json', 'r') as abi_file:
 
 # Convert the contract address to checksum format
 contract_address = Web3.to_checksum_address(CONTRACT_ADDRESS)
+
+# Derive the public address from the private key
+account = w3.eth.account.from_key(PRIVATE_KEY)
+user_address = account.address  # This is the 'from' address, derived from the private key
+print(f"Derived user address: {user_address}")
 
 # Initialize the contract
 contract = w3.eth.contract(address=contract_address, abi=contract_abi)
@@ -41,27 +45,31 @@ def store_data_on_blockchain(prescription_hash, test_results_hash):
     - Transaction hash as a string if successful, or None if there was an error.
     """
     try:
-        # Convert your user address to checksum format
-        user_address = Web3.to_checksum_address(USER_ADDRESS)
-
         # Get the latest nonce for your account (needed for transaction)
-        nonce = w3.eth.getTransactionCount(user_address)
+        nonce = w3.eth.get_transaction_count(user_address)
 
-        # Build the transaction to call the smart contract's storeMedicalData function
-        txn = contract.functions.storeMedicalData(prescription_hash, test_results_hash).buildTransaction({
-            'chainId': 1337,  # Chain ID for Kaleido private networks (1337 is often used for private chains)
-            'gas': 2000000,   # Gas limit for the transaction
-            'gasPrice': w3.toWei('20', 'gwei'),  # Gas price in Gwei
-            'nonce': nonce,   # Nonce value for transaction uniqueness
+        # Check the balance to ensure there are enough funds
+        balance = w3.eth.get_balance(user_address)
+        print(f"Account balance: {w3.from_wei(balance, 'ether')} ETH")
+        if balance == 0:
+            raise ValueError("Insufficient funds in the account to cover gas fees")
+
+        # Call the storeMedicalData function and build the transaction
+        txn = contract.functions.storeMedicalData(prescription_hash, test_results_hash).build_transaction({
+            'chainId': 12345,  # Replace with Kaleido's actual chain ID (check the Kaleido console)
+            'gas': 2000000,    # Gas limit for the transaction
+            'gasPrice': w3.to_wei('20', 'gwei'),  # Gas price in Gwei
+            'nonce': nonce,    # Nonce value for transaction uniqueness
+            'from': user_address  # Use the derived address from the private key
         })
-
+        
         # Sign the transaction with your private key
-        signed_txn = w3.eth.account.signTransaction(txn, PRIVATE_KEY)
+        signed_txn = w3.eth.account.sign_transaction(txn, PRIVATE_KEY)
 
         # Send the signed transaction to the blockchain
-        tx_hash = w3.eth.sendRawTransaction(signed_txn.rawTransaction)
+        tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
 
-        # Print or return the transaction hash (optional logging for debugging)
+        # Print or return the transaction hash
         print(f"Transaction successful with hash: {tx_hash.hex()}")
         return tx_hash.hex()
 

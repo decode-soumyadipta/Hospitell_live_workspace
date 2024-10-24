@@ -396,13 +396,23 @@ def save_address():
 @login_required
 def cancel_booking(booking_id):
     booking = Booking.query.get(booking_id)
+    
     if not booking or booking.user_id != current_user.id:
         return jsonify({'success': False, 'message': 'Booking not found or access denied.'}), 404
     
+    # Check if the booking has an assigned ambulance
+    if booking.ambulance_id:
+        ambulance = Ambulance.query.get(booking.ambulance_id)
+        if ambulance:
+            ambulance.status = 'available'  # Make the ambulance available again
+
+    # Mark the booking as cancelled
     booking.status = 'Cancelled'
+    
     db.session.commit()
     
     return jsonify({'success': True}), 200
+
 
 
 @user_bp.route('/book_opd', methods=['GET', 'POST'])
@@ -567,24 +577,24 @@ def upload_medical_data():
                 if prescription_hash and test_results_hash:
                     # Blockchain transaction: Store IPFS hashes on the blockchain
                     try:
-                        # Call the function with only two arguments
                         tx_hash = store_data_on_blockchain(prescription_hash, test_results_hash)
 
-                        # Save the data to the local database
-                        medical_data = MedicalData(
-                            user_id=current_user.id,
-                            prescription_hash=prescription_hash,
-                            test_results_hash=test_results_hash,
-                            tx_hash=tx_hash
-                        )
-                        db.session.add(medical_data)
-                        db.session.commit()
+                        if tx_hash:
+                            # Save the data to the local database only if the transaction was successful
+                            medical_data = MedicalData(
+                                user_id=current_user.id,
+                                prescription_hash=prescription_hash,
+                                test_results_hash=test_results_hash,
+                                tx_hash=tx_hash
+                            )
+                            db.session.add(medical_data)
+                            db.session.commit()
 
-                        flash('Medical data uploaded successfully!', 'success')
-                        return redirect(url_for('user_bp.upload_medical_data'))  # Redirect to the upload page to show history
+                            flash('Medical data uploaded successfully!', 'success')
+                        else:
+                            flash('Failed to store data on the blockchain. Please try again.', 'danger')
 
                     except Exception as e:
-                        # Roll back the session in case of failure
                         db.session.rollback()
                         flash(f'Blockchain transaction failed: {str(e)}', 'danger')
                         traceback.print_exc()
@@ -593,7 +603,6 @@ def upload_medical_data():
                     flash('Failed to upload files to IPFS. Please try again.', 'danger')
 
             except Exception as e:
-                # Handle any other exceptions
                 flash(f"An error occurred: {str(e)}", 'danger')
                 traceback.print_exc()
 
@@ -657,3 +666,28 @@ def upload_medical_data():
 #            flash('Please upload both files.', 'danger')
 #
 #    return render_template('user_dashboard/upload_medical_data.html')
+@user_bp.route('/filter_hospitals', methods=['POST'])
+@login_required
+def filter_hospitals():
+    bed_type = request.json.get('bed_type')
+
+    # Query hospitals and sort them by the selected bed type
+    if bed_type == 'icu':
+        hospitals = Hospital.query.order_by(Hospital.vacant_icu_beds.desc()).all()
+    elif bed_type == 'opd':
+        hospitals = Hospital.query.order_by(Hospital.vacant_opd_beds.desc()).all()
+    else:
+        hospitals = Hospital.query.order_by(Hospital.vacant_general_beds.desc()).all()
+
+    # Convert the hospital data to JSON format to send back to the frontend
+    hospital_list = [{
+        'id': hospital.id,
+        'name': hospital.name,
+        'distance': 0,  # You can calculate this if you have user location
+        'vacant_icu_beds': hospital.vacant_icu_beds,
+        'vacant_opd_beds': hospital.vacant_opd_beds,
+        'vacant_general_beds': hospital.vacant_general_beds,
+        'contact_info': hospital.contact_info
+    } for hospital in hospitals]
+
+    return jsonify(hospital_list), 200
