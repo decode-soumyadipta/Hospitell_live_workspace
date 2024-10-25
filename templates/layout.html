@@ -151,8 +151,19 @@
 
           <a class="nav-link nav-profile d-flex align-items-center pe-0" href="#" data-bs-toggle="dropdown">
             <img src="{{ url_for('static', filename=user.profile_image) }}" alt="Profile" class="img-fluid rounded-circle">
-            <span class="d-none d-md-block dropdown-toggle ps-2"><text style="text-transform: none; color: white;">Hello,</text> {{ user.name }}</span>
-          </a><!-- End Profile Iamge Icon -->
+            <style>.username {
+              color: white; /* Default color */
+              transition: color 0.3s; /* Smooth transition */
+          }
+          
+          .username:hover {
+              color: orangered; /* Color on hover */
+          }
+          </style>
+            <span class="d-none d-md-block dropdown-toggle ps-2 username" style="font-size:16px; text-transform: capitalize; margin-right: 10px">
+              <text style="text-transform: none; color: white;">Hello,</text> {{ user.name }}
+          </span>
+                    </a><!-- End Profile Iamge Icon -->
 
           <ul class="dropdown-menu dropdown-menu-end dropdown-menu-arrow profile">
             

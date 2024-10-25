@@ -99,7 +99,8 @@ def book_lab_test():
         hospital = Hospital.query.get(hospital_id)
         test = DiagnosticTest.query.get(test_id)
         msg = Message('Lab Test Booking Confirmation', recipients=[current_user.email])
-        msg.body = f"Your lab test booking has been confirmed: Test: {test.name}, Price: ₹{price}, Hospital: {hospital.name}"
+        msg.body = f"Your lab test booking has been confirmed: Test: {test.name}, Price: ₹{price}, Hospital: {hospital.name}. Your lab test booking code is: {booking_code}"
+
         mail.send(msg)
 
         return redirect(url_for('user_bp.lab_test_booking_history'))

@@ -402,3 +402,21 @@ class MedicalData(db.Model):
     
     # Relationship to the User model (back-populating the 'medical_data' field)
     user = db.relationship('User', back_populates='medical_data')
+
+
+
+
+
+
+
+
+class LabTestQueue(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    lab_test_booking_id = db.Column(db.Integer, db.ForeignKey('lab_test_booking.id'), nullable=False)
+    queue_number = db.Column(db.Integer, nullable=False)
+    booking_date = db.Column(db.Date, nullable=False)  # Date for queue
+    test_name = db.Column(db.String(100), nullable=False)  # Name of the test
+    hospital_id = db.Column(db.Integer, db.ForeignKey('hospital.id'), nullable=False)
+
+    lab_test_booking = db.relationship('LabTestBooking', backref='queue_entries')
+    hospital = db.relationship('Hospital', backref='test_queues')

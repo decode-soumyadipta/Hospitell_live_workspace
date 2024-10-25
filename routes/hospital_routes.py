@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app, session
 from flask_login import login_required, current_user
-from models import db, Hospital, Ward, Bed, Booking, Notification, User, Department, Doctor, OPDAppointment, MaxPatient, LabTestBooking, Queue, DiagnosticDepartment, DiagnosticTest, Ambulance
+from models import db, Hospital, Ward, Bed, Booking, Notification, User, Department, Doctor, OPDAppointment, MaxPatient, LabTestBooking, Queue, DiagnosticDepartment, DiagnosticTest, Ambulance, LabTestQueue
 from flask_mail import Message, Mail
 from datetime import datetime
 import os
@@ -519,10 +519,32 @@ def create_opd_queue():
 @hospital_bp.route('/show_lab_test_bookings', methods=['GET'])
 @login_required
 def show_lab_test_bookings():
-    hospital = current_user.hospitals[0]
-    bookings = LabTestBooking.query.filter_by(hospital_id=hospital.id).all()
+    # Get the first associated hospital for the current user
+    hospital = current_user.hospitals[0]  # Adjust if user has multiple hospitals
 
-    return render_template('HOSPITAL/show_lab_test_bookings.html', bookings=bookings, hospital=hospital)
+    # Get the selected date from query parameters
+    selected_date = request.args.get('filter_date')
+    if selected_date:
+        # Filter bookings by the selected date
+        bookings = LabTestBooking.query.filter_by(hospital_id=hospital.id, booking_date=selected_date).all()
+        checked_in_patients = LabTestBooking.query.filter_by(
+            hospital_id=hospital.id,
+            booking_date=selected_date,
+            status='CheckedIn'
+        ).all()
+    else:
+        # If no date selected, show all bookings
+        bookings = LabTestBooking.query.filter_by(hospital_id=hospital.id).all()
+        checked_in_patients = []
+
+    # Pass the 'hospital' variable to the template
+    return render_template('HOSPITAL/show_lab_test_bookings.html', 
+                           bookings=bookings, 
+                           checked_in_patients=checked_in_patients,
+                           selected_date=selected_date or "all dates",
+                           hospital=hospital)  # Pass 'hospital' to the template
+
+
 
 # routes.py (hospital_bp)
 # routes.py (hospital_bp)
@@ -572,251 +594,422 @@ def manage_diagnostic_departments():
     return render_template('HOSPITAL/manage_diagnostic_departments.html', departments=departments, hospital=hospital)
 
 
-@hospital_bp.route('/book_lab_test', methods=['POST'])
-@login_required
-def book_lab_test():
-    # Get form data
-    category = request.form.get('category')
-    test_name = request.form.get('test_name')
-    hospital_id = request.form.get('hospital_id')
-
-    # Handle file upload
-    if 'prescription' not in request.files:
-        flash('No file part', 'danger')
-        return redirect(request.url)
-    file = request.files['prescription']
-    if file.filename == '':
-        flash('No selected file', 'danger')
-        return redirect(request.url)
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-    else:
-        flash('Invalid file format. Only PDF, JPG, and PNG are allowed.', 'danger')
-        return redirect(request.url)
-
-    # Generate a unique 4-digit booking code
-    booking_code = str(random.randint(1000, 9999))
-
-    # Save booking to the database
-    booking = LabTestBooking(
-        user_id=current_user.id,
-        test_category=category,
-        test_name=test_name,
-        hospital_id=hospital_id,
-        prescription=filepath,
-        booking_code=booking_code,
-        status='Pending'
-    )
-    db.session.add(booking)
-    db.session.commit()
-
-    # Send email confirmation
-    msg = Message('Lab Test Booking Confirmation', recipients=[current_user.email])
-    msg.body = f"""
-    Dear {current_user.name},
-
-    Your lab test booking has been confirmed:
-    Test: {test_name}
-    Hospital: {Hospital.query.get(hospital_id).name}
-    Booking Code: {booking_code}
-
-    Please show this code at the hospital on arrival.
-
-    Best regards,
-    Hospital Management System
-    """
-    mail.send(msg)
-
-    flash('Lab test booked successfully. A confirmation email has been sent.', 'success')
-    return redirect(url_for('hospital_bp.show_lab_test_bookings'))
-
-
-
-
-@hospital_bp.route('/manage_lab_tests', methods=['GET', 'POST'])
-@login_required
-def manage_lab_tests():
-    hospital = current_user.hospitals[0]  # Assuming one hospital per admin
-
-    if request.method == 'POST':
-        # Adding new lab test details
-        category = request.form.get('category')
-        test_name = request.form.get('test_name')
-        price = request.form.get('price')
-
-        new_test = DiagnosticTest(hospital_id=hospital.id, test_category=category, test_name=test_name, price=price)
-        db.session.add(new_test)
-        db.session.commit()
-        flash('Lab test added successfully.', 'success')
-    
-    tests = DiagnosticTest.query.filter_by(hospital_id=hospital.id).all()
-    return render_template('HOSPITAL/manage_lab_tests.html', tests=tests, hospital=hospital)
+#@hospital_bp.route('/book_lab_test', methods=['POST'])
+#@login_required
+#def book_lab_test():
+#    # Get form data
+#    category = request.form.get('category')
+#    test_name = request.form.get('test_name')
+#    hospital_id = request.form.get('hospital_id')
+#
+#    # Handle file upload
+#    if 'prescription' not in request.files:
+#        flash('No file part', 'danger')
+#        return redirect(request.url)
+#    file = request.files['prescription']
+#    if file.filename == '':
+#        flash('No selected file', 'danger')
+#        return redirect(request.url)
+#    if file and allowed_file(file.filename):
+#        filename = secure_filename(file.filename)
+#        filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+#        file.save(filepath)
+#    else:
+#        flash('Invalid file format. Only PDF, JPG, and PNG are allowed.', 'danger')
+#        return redirect(request.url)
+#
+#    # Generate a unique 4-digit booking code
+#    booking_code = str(random.randint(1000, 9999))
+#
+#    # Save booking to the database
+#    booking = LabTestBooking(
+#        user_id=current_user.id,
+#        test_category=category,
+#        test_name=test_name,
+#        hospital_id=hospital_id,
+#        prescription=filepath,
+#        booking_code=booking_code,
+#        status='Pending'
+#    )
+#    db.session.add(booking)
+#    db.session.commit()
+#
+#    # Send email confirmation
+#    msg = Message('Lab Test Booking Confirmation', recipients=[current_user.email])
+#    msg.body = f"""
+#    Dear {current_user.name},
+#
+#    Your lab test booking has been confirmed:
+#    Test: {test_name}
+#    Hospital: {Hospital.query.get(hospital_id).name}
+#    Booking Code: {booking_code}
+#
+#    Please show this code at the hospital on arrival.
+#
+#    Best regards,
+#    Hospital Management System
+#    """
+#    mail.send(msg)
+#
+#    flash('Lab test booked successfully. A confirmation email has been sent.', 'success')
+#    return redirect(url_for('hospital_bp.show_lab_test_bookings'))
+#
 
 
-
-@hospital_bp.route('/manage_lab_test_queue', methods=['GET', 'POST'])
+####################################################################################################################################################################################
+#@hospital_bp.route('/manage_lab_tests', methods=['GET', 'POST'])
+#@login_required
+#def manage_lab_tests():
+#    hospital = current_user.hospitals[0]  # Assuming one hospital per admin
+#
+#    if request.method == 'POST':
+#        # Adding new lab test details
+#        category = request.form.get('category')
+#        test_name = request.form.get('test_name')
+#        price = request.form.get('price')
+#
+#        new_test = DiagnosticTest(hospital_id=hospital.id, test_category=category, test_name=test_name, price=price)
+#        db.session.add(new_test)
+#        db.session.commit()
+#        flash('Lab test added successfully.', 'success')
+#    
+#    tests = DiagnosticTest.query.filter_by(hospital_id=hospital.id).all()
+#    return render_template('HOSPITAL/manage_lab_tests.html', tests=tests, hospital=hospital)
+#
+####################################################################################################################################################################################
+@hospital_bp.route('/manage_lab_test_queue', methods=['GET'])
 @login_required
 def manage_lab_test_queue():
     hospital = current_user.hospitals[0]
-    tests = LabTestBooking.query.filter_by(hospital_id=hospital.id).all()
-    queue = []  # Fetch existing queue data if needed
+    tests = db.session.query(DiagnosticTest).join(DiagnosticDepartment).filter(
+        DiagnosticDepartment.hospital_id == hospital.id
+    ).distinct(DiagnosticTest.name).all()
+    return render_template('HOSPITAL/manage_lab_test_queue.html', tests=tests, hospital=hospital)
 
-    if request.method == 'POST':
-        test_id = request.form.get('test_id')  # Fetch test_id from form data
-        test_date = request.form.get('test_date')  # Fetch the selected date
-
-        if not test_id:
-            flash('Please select a test.', 'danger')
-            return redirect(url_for('hospital_bp.manage_lab_test_queue'))
-
-        if not test_date:
-            flash('Please select a date.', 'danger')
-            return redirect(url_for('hospital_bp.manage_lab_test_queue'))
-
-        # Process and redirect to create queue based on selected test and date
-        return redirect(url_for('hospital_bp.create_lab_test_queue', test_id=test_id, test_date=test_date))
-
-    return render_template('HOSPITAL/manage_lab_test_queue.html', tests=tests, hospital=hospital, queue=queue)
-
-
-
-
-@hospital_bp.route('/create_lab_test_queue/<int:test_id>', methods=['POST', 'GET'])
+@hospital_bp.route('/create_lab_test_queue', methods=['POST'])
 @login_required
-def create_lab_test_queue(test_id):
+def create_lab_test_queue():
+    test_name = request.form.get('test_name')
+    test_date = request.form.get('test_date')
     hospital = current_user.hospitals[0]
-    test_date = request.args.get('test_date')  # Get the test date from URL params
 
-    # Get the lab test by ID and hospital
-    lab_test = LabTestBooking.query.filter_by(hospital_id=hospital.id, id=test_id).first()
+    # Fetch confirmed, checked-in patients for the test and date
+    patients = LabTestBooking.query.filter_by(
+        hospital_id=hospital.id,
+        test_name=test_name,
+        status='CheckedIn',
+        booking_date=test_date
+    ).order_by(LabTestBooking.id).all()
 
-    if not lab_test:
-        flash('Invalid lab test ID.', 'danger')
-        return redirect(url_for('hospital_bp.manage_lab_test_queue'))
+    if not patients:
+        return jsonify(success=False, message="No confirmed patients found for the selected test and date."), 404
+
+    # Get the highest existing queue number for the test and date
+    max_queue_number = db.session.query(db.func.max(LabTestQueue.queue_number)).filter_by(
+        hospital_id=hospital.id,
+        test_name=test_name,
+        booking_date=test_date
+    ).scalar() or 0
+
+    # Add patients who are not already in the queue
+    for patient in patients:
+        existing_entry = LabTestQueue.query.filter_by(
+            hospital_id=hospital.id,
+            test_name=test_name,
+            booking_date=test_date,
+            lab_test_booking_id=patient.id
+        ).first()
+        
+        if not existing_entry:  # Only add if patient is not already in the queue
+            max_queue_number += 1
+            queue_entry = LabTestQueue(
+                lab_test_booking_id=patient.id,
+                queue_number=max_queue_number,
+                booking_date=test_date,
+                test_name=test_name,
+                hospital_id=hospital.id
+            )
+            db.session.add(queue_entry)
+
+    db.session.commit()
+    return jsonify(success=True, message="Lab test queue created successfully!")
+
+@hospital_bp.route('/api/mark_done/<int:patient_id>', methods=['POST'])
+@login_required
+def mark_done(patient_id):
+    try:
+        patient = LabTestBooking.query.get_or_404(patient_id)
+        
+        # Update the booking status to DONE
+        patient.status = 'DONE'
+        
+        # Remove the patient from the queue
+        LabTestQueue.query.filter_by(lab_test_booking_id=patient.id).delete()
+        db.session.commit()
+
+        # Send a thank-you email with test details
+        test_name = patient.test_name
+        test_date = patient.booking_date.strftime('%Y-%m-%d')
+        msg = Message("Thank you for visiting", recipients=[patient.user.email])
+        msg.body = (f"Dear {patient.user.name},\n\n"
+                    f"Thank you for completing your lab test for '{test_name}' on {test_date}.\n"
+                    f"We appreciate your visit.\n\nBest regards,\nYour Hospital Team")
+        mail.send(msg)
+
+        return jsonify(success=True)
+    except Exception as e:
+        return jsonify(success=False, error=str(e))
+
+@hospital_bp.route('/api/get_queue', methods=['GET'])
+@login_required
+def get_queue():
+    test_name = request.args.get('test_name')
+    test_date = request.args.get('test_date')
+    hospital = current_user.hospitals[0]
+
+    # Fetch queue entries for the test, date, and hospital, ordered by queue number
+    queue_entries = LabTestQueue.query.filter_by(
+        hospital_id=hospital.id,
+        test_name=test_name,
+        booking_date=test_date
+    ).order_by(LabTestQueue.queue_number).all()
+
+    # Prepare queue data with user name and queue number
+    queue_data = [{
+        'id': entry.lab_test_booking_id,
+        'user_name': entry.lab_test_booking.user.name,
+        'queue_number': entry.queue_number
+    } for entry in queue_entries]
+    
+    return jsonify(success=True, patients=queue_data)
+
+@hospital_bp.route('/api/get_patient_counts', methods=['GET'])
+@login_required
+def get_patient_counts():
+    test_name = request.args.get('test_name')
+    test_date = request.args.get('test_date')
+    hospital = current_user.hospitals[0]
+
+    # Count of CheckedIn patients
+    checked_in_count = LabTestBooking.query.filter_by(
+        hospital_id=hospital.id,
+        test_name=test_name,
+        status='CheckedIn',
+        booking_date=test_date
+    ).count()
+
+    # Count of Done patients
+    done_count = LabTestBooking.query.filter_by(
+        hospital_id=hospital.id,
+        test_name=test_name,
+        status='DONE',
+        booking_date=test_date
+    ).count()
+
+    return jsonify(success=True, checked_in_count=checked_in_count, done_count=done_count)
+
+
+
+@hospital_bp.route('/api/check_queue_exists', methods=['GET'])
+@login_required
+def check_queue_exists():
+    test_name = request.args.get('test_name')
+    test_date = request.args.get('test_date')
+    hospital = current_user.hospitals[0]
+
+    # Check if a queue already exists
+    queue_exists = LabTestQueue.query.filter_by(
+        hospital_id=hospital.id,
+        test_name=test_name,
+        booking_date=test_date
+    ).first() is not None
+
+    return jsonify(queueExists=queue_exists)
+
+
+@hospital_bp.route('/api/get_new_check_ins', methods=['GET'])
+@login_required
+def get_new_check_ins():
+    test_name = request.args.get('test_name')
+    test_date = request.args.get('test_date')
+    hospital = current_user.hospitals[0]
+
+    # Find patients who are checked-in but not in the queue
+    queued_patient_ids = [entry.lab_test_booking_id for entry in LabTestQueue.query.filter_by(
+        hospital_id=hospital.id, test_name=test_name, booking_date=test_date
+    )]
+    new_patients = LabTestBooking.query.filter(
+        LabTestBooking.hospital_id == hospital.id,
+        LabTestBooking.test_name == test_name,
+        LabTestBooking.status == 'CheckedIn',
+        LabTestBooking.booking_date == test_date,
+        ~LabTestBooking.id.in_(queued_patient_ids)
+    ).all()
+
+    # Add new check-ins to the LabTestQueue database
+    max_queue_number = db.session.query(db.func.max(LabTestQueue.queue_number)).filter_by(
+        hospital_id=hospital.id, test_name=test_name, booking_date=test_date
+    ).scalar() or 0
+
+    new_patients_data = []
+    for patient in new_patients:
+        max_queue_number += 1
+        new_entry = LabTestQueue(
+            lab_test_booking_id=patient.id,
+            queue_number=max_queue_number,
+            booking_date=test_date,
+            test_name=test_name,
+            hospital_id=hospital.id
+        )
+        db.session.add(new_entry)
+        new_patients_data.append({'id': patient.id, 'user_name': patient.user.name, 'queue_number': max_queue_number})
+
+    db.session.commit()
+
+    return jsonify(success=True, newPatients=new_patients_data)
+
+@hospital_bp.route('/api/get_max_queue_number', methods=['GET'])
+@login_required
+def get_max_queue_number():
+    test_name = request.args.get('test_name')
+    test_date = request.args.get('test_date')
+    hospital = current_user.hospitals[0]
+
+    # Fetch the highest queue number for the specified test and date
+    max_queue_number = db.session.query(db.func.max(LabTestQueue.queue_number)).filter_by(
+        hospital_id=hospital.id,
+        test_name=test_name,
+        booking_date=test_date
+    ).scalar() or 0  # Default to 0 if no queue exists
+
+    return jsonify(success=True, maxQueueNumber=max_queue_number)
+
+
+
+
+@hospital_bp.route('/api/save_queue', methods=['POST'])
+@login_required
+def save_queue():
+    test_name = request.json.get('test_name')
+    test_date = request.json.get('test_date')
+    queue_data = request.json.get('queue_data')
+    hospital = current_user.hospitals[0]
 
     try:
-        # Get patients with 'Confirmed' status for the selected test and date
-        patients = LabTestBooking.query.filter_by(
-            hospital_id=hospital.id,
-            test_name=lab_test.test_name,
-            status='Confirmed',
-            test_date=test_date  # Filter by the selected date
-        ).all()
+        for patient in queue_data:
+            # Check if the patient already has a queue entry
+            existing_entry = LabTestQueue.query.filter_by(
+                hospital_id=hospital.id,
+                test_name=test_name,
+                booking_date=test_date,
+                lab_test_booking_id=patient['id']
+            ).first()
 
-        if not patients:
-            flash("No confirmed patients found to create the queue for the selected date.", "danger")
-            return redirect(url_for('hospital_bp.manage_lab_test_queue'))
+            # If patient is not already in queue, add them
+            if not existing_entry:
+                new_entry = LabTestQueue(
+                    lab_test_booking_id=patient['id'],
+                    queue_number=patient['queue_number'],
+                    booking_date=test_date,
+                    test_name=test_name,
+                    hospital_id=hospital.id
+                )
+                db.session.add(new_entry)
 
-        # Sort patients by their booking IDs and assign queue numbers
-        sorted_patients = sorted(patients, key=lambda x: x.id)
-
-        for index, patient in enumerate(sorted_patients, start=1):
-            patient.queue_number = index
-            db.session.commit()
-
-            # Send email notification with queue number
-            msg = Message('Your Lab Test Queue Number', recipients=[patient.user.email])
-            msg.body = f"""
-            Dear {patient.user.name},
-
-            You have been assigned queue number {patient.queue_number} for your lab test {patient.test_name} on {test_date}.
-
-            Best regards,
-            Hospital Management System
-            """
-            mail.send(msg)
-
-        flash('Lab test queue created successfully!', 'success')
-        return redirect(url_for('hospital_bp.manage_lab_test_queue'))
-
+        db.session.commit()
+        return jsonify(success=True, message="Queue saved successfully!")
     except Exception as e:
-        flash(f"An error occurred: {str(e)}", 'danger')
-        return redirect(url_for('hospital_bp.manage_lab_test_queue'))
-
-
-@hospital_bp.route('/check_in/<int:booking_id>', methods=['POST'])
-@login_required
-def check_in(booking_id):
-    # Fetch the booking record
-    booking = LabTestBooking.query.get_or_404(booking_id)
-    data = request.json
-    booking_code = data.get('booking_code')
-
-    # Verify the booking code
-    if booking.booking_code != booking_code:
-        return jsonify({'success': False, 'message': 'Invalid booking code'}), 400
-
-    # Ensure the booking is not already checked in
-    if booking.status == 'Verified':
-        return jsonify({'success': False, 'message': 'This booking has already been checked in.'}), 400
-
-    # Update status to 'Verified'
-    booking.status = 'Verified'
-
-    # Assign queue number for the hospital
-    latest_queue_number = Queue.query.filter_by(hospital_id=booking.hospital_id).count() + 1
-    new_queue = Queue(
-        hospital_id=booking.hospital_id,
-        test_booking_id=booking.id,
-        queue_number=latest_queue_number
-    )
-    db.session.add(new_queue)
-    db.session.commit()
-
-    # Send an email to the user with the queue number
-    msg = Message('Queue Confirmation', recipients=[booking.user.email])
-    msg.body = f"""
-    Dear {booking.user.name},
-
-    Your check-in for the lab test {booking.test_name} at {booking.hospital.name} on {booking.booking_date} is confirmed.
-    Your queue number is {latest_queue_number}.
-
-    Thank you,
-    Hospital Management System
-    """
-    mail.send(msg)
-
-    return jsonify({'success': True, 'message': 'Check-in successful. Queue number assigned.'})
+        return jsonify(success=False, error=str(e))
 
 
 
-@hospital_bp.route('/complete_lab_test_check_in/<int:booking_id>', methods=['POST'])
-@login_required
-def complete_lab_test_check_in(booking_id):
-    data = request.get_json()  # Again, using get_json for consistency
-    booking = LabTestBooking.query.get_or_404(booking_id)
 
-    # Update the booking status to 'CheckedIn'
-    booking.status = 'CheckedIn'
 
-    # Update patient's name if provided
-    if 'patient_name' in data:
-        booking.user.name = data.get('patient_name')
 
-    # Handle additional information like emergency flag
-    if 'is_emergency' in data:
-        booking.is_emergency = bool(data.get('is_emergency'))  # Ensuring it's converted to a boolean
 
-    db.session.commit()
 
-    # Send confirmation email to the patient
-    msg = Message('Lab Test Check-In Confirmation', recipients=[booking.user.email])
-    msg.body = f"""
-    Dear {booking.user.name},
 
-    You have successfully checked in for your lab test: {booking.test_name} at {booking.hospital.name}.
-
-    You are now in the queue. We will notify you with the current queue status.
-
-    Best regards,
-    Hospital Management System
-    """
-    mail.send(msg)
-
-    return jsonify(success=True)
-
+#@hospital_bp.route('/check_in/<int:booking_id>', methods=['POST'])
+#@login_required
+#def check_in(booking_id):
+#    # Fetch the booking record
+#    booking = LabTestBooking.query.get_or_404(booking_id)
+#    data = request.json
+#    booking_code = data.get('booking_code')
+#
+#    # Verify the booking code
+#    if booking.booking_code != booking_code:
+#        return jsonify({'success': False, 'message': 'Invalid booking code'}), 400
+#
+#    # Ensure the booking is not already checked in
+#    if booking.status == 'Verified':
+#        return jsonify({'success': False, 'message': 'This booking has already been checked in.'}), 400
+#
+#    # Update status to 'Verified'
+#    booking.status = 'Verified'
+#
+#    # Assign queue number for the hospital
+#    latest_queue_number = Queue.query.filter_by(hospital_id=booking.hospital_id).count() + 1
+#    new_queue = Queue(
+#        hospital_id=booking.hospital_id,
+#        test_booking_id=booking.id,
+#        queue_number=latest_queue_number
+#    )
+#    db.session.add(new_queue)
+#    db.session.commit()
+#
+#    # Send an email to the user with the queue number
+#    msg = Message('Queue Confirmation', recipients=[booking.user.email])
+#    msg.body = f"""
+#    Dear {booking.user.name},
+#
+#    Your check-in for the lab test {booking.test_name} at {booking.hospital.name} on {booking.booking_date} is confirmed.
+#    Your queue number is {latest_queue_number}.
+#
+#    Thank you,
+#    Hospital Management System
+#    """
+#    mail.send(msg)
+#
+#    return jsonify({'success': True, 'message': 'Check-in successful. Queue number assigned.'})
+#
+#
+#
+#@hospital_bp.route('/complete_lab_test_check_in/<int:booking_id>', methods=['POST'])
+#@login_required
+#def complete_lab_test_check_in(booking_id):
+#    data = request.get_json()  # Again, using get_json for consistency
+#    booking = LabTestBooking.query.get_or_404(booking_id)
+#
+#    # Update the booking status to 'CheckedIn'
+#    booking.status = 'CheckedIn'
+#
+#    # Update patient's name if provided
+#    if 'patient_name' in data:
+#        booking.user.name = data.get('patient_name')
+#
+#    # Handle additional information like emergency flag
+#    if 'is_emergency' in data:
+#        booking.is_emergency = bool(data.get('is_emergency'))  # Ensuring it's converted to a boolean
+#
+#    db.session.commit()
+#
+#    # Send confirmation email to the patient
+#    msg = Message('Lab Test Check-In Confirmation', recipients=[booking.user.email])
+#    msg.body = f"""
+#    Dear {booking.user.name},
+#
+#    You have successfully checked in for your lab test: {booking.test_name} at {booking.hospital.name}.
+#
+#    You are now in the queue. We will notify you with the current queue status.
+#
+#    Best regards,
+#    Hospital Management System
+#    """
+#    mail.send(msg)
+#
+#    return jsonify(success=True)
+#
 @hospital_bp.route('/register_department', methods=['POST'])
 @login_required
 def register_department():
@@ -843,23 +1036,36 @@ def view_check_ins():
 @login_required
 def verify_test_booking_code(booking_id):
     data = request.json
-    current_app.logger.info(f"Booking ID: {booking_id}, Data: {data}")  # Log the incoming request
-
     booking_code = data.get('booking_code')
 
     # Fetch the booking
     booking = LabTestBooking.query.get_or_404(booking_id)
-    current_app.logger.info(f"Booking fetched: {booking}")  # Log booking fetched
 
-    # Verify the booking code
+    # Verify the booking code and update status if correct
     if booking.booking_code == booking_code:
-        # Update status to 'CheckedIn'
         booking.status = 'CheckedIn'
         db.session.commit()
+        
+        # Fetch updated list of checked-in patients for the booking date
+        checked_in_patients = LabTestBooking.query.filter_by(
+            hospital_id=booking.hospital_id,
+            booking_date=booking.booking_date,
+            status='CheckedIn'
+        ).all()
 
-        return jsonify(success=True)
+        # Serialize checked-in patients to JSON
+        checked_in_patients_data = [{
+            'id': patient.id,
+            'user_name': patient.user.name,
+            'test_category': patient.test_category,
+            'test_name': patient.test_name,
+            'booking_date': patient.booking_date.strftime('%Y-%m-%d')
+        } for patient in checked_in_patients]
+
+        return jsonify(success=True, checked_in_patients=checked_in_patients_data)
     else:
         return jsonify(success=False)
+
 
 
 

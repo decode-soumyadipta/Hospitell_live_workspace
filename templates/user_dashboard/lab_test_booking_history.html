@@ -10,7 +10,6 @@
     <section class="section">
         <div class="row">
             <div class="col-lg-12">
-
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title">Booking History</h5>
@@ -22,22 +21,28 @@
                                     <th>Test Name</th>
                                     <th>Hospital</th>
                                     <th>Status</th>
+                                    <th>Date</th>
                                     <th>Booking Code</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for booking in bookings %}
-                                <tr class="{% if booking.status == 'Cancelled' %}table-danger{% endif %}">
+                                <tr class="{% if booking.status == 'Cancelled' %}table-danger{% elif booking.status == 'DONE' %}table-success{% endif %}">
                                     <td>{{ booking.test_name }}</td>
                                     <td>{{ booking.hospital.name }}</td>
                                     <td>{{ booking.status }}</td>
+                                    <td>{{ booking.booking_date }}</td>
                                     <td>{{ booking.booking_code }}</td>
                                     <td>
-                                        {% if booking.status != 'Cancelled' %}
-                                        <button class="btn btn-danger btn-sm cancel-booking-btn" data-booking-id="{{ booking.id }}">Cancel</button>
-                                        {% else %}
-                                        <span class="badge bg-danger">Cancelled</span>
+                                        {% if booking.status == 'DONE' %}
+                                            <span class="badge bg-success">Test Done</span>
+                                        {% elif booking.status == 'Cancelled' %}
+                                            <span class="badge bg-danger">Cancelled</span>
+                                        {% elif booking.status == 'CheckedIn' %}
+                                            <span class="badge bg-success">Checked In</span>
+                                        {% elif booking.status == 'Pending' %}
+                                            <button class="btn btn-danger btn-sm cancel-booking-btn" data-booking-id="{{ booking.id }}">Cancel</button>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -47,14 +52,11 @@
                         {% else %}
                         <p class="text-center">No lab test bookings found.</p>
                         {% endif %}
-
                     </div>
                 </div>
-
             </div>
         </div>
     </section>
-
 </main>
 
 <script>
@@ -68,7 +70,6 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            // Assuming you're using CSRF protection
                         },
                         body: JSON.stringify({ status: 'Cancelled' })
                     })

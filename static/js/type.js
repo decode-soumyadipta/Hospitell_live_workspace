@@ -1,5 +1,5 @@
 const heading = document.getElementById('typewriter');
-    const text = heading.innerText;
+   
     let index = 0;
 
     function typeWriter() {
