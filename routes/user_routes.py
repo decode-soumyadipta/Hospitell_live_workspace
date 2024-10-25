@@ -43,85 +43,113 @@ def book_lab_test():
     if request.method == 'POST':
         department_id = request.form.get('department')
         test_id = request.form.get('test')
-        hospital_id = request.form.get('hospital')
+        hospital_id = request.form.get('hospital')  # From the hidden field
         price = request.form.get('price')
-        booking_date = request.form.get('booking_date')  # Get the booking date
+        booking_date = request.form.get('booking_date')
 
-        if not booking_date:
-            flash('Booking date is required.', 'danger')
+        # Debugging log statements
+        print(f"department_id: {department_id}")
+        print(f"test_id: {test_id}")
+        print(f"hospital_id: {hospital_id}")
+        print(f"booking_date: {booking_date}")
+
+        # Validate hospital_id is not null
+        if not hospital_id:
+            flash('Invalid hospital selection.', 'danger')
             return redirect(url_for('user_bp.book_lab_test'))
-
-
 
         # Handle file upload for prescription
-        if 'prescription' not in request.files or request.files['prescription'].filename == '':
-            flash('No prescription file selected.', 'danger')
-            return redirect(url_for('user_bp.book_lab_test'))
-
         file = request.files['prescription']
-
-        # Validate the file type
-        if not allowed_file(file.filename):
-            flash('Invalid file format. Only PDF, JPG, and PNG are allowed.', 'danger')
+        if not file.filename or not allowed_file(file.filename):
+            flash('Invalid file format or missing file.', 'danger')
             return redirect(url_for('user_bp.book_lab_test'))
 
-        # Secure filename and save the file using the path from config.json
         filename = secure_filename(file.filename)
-        upload_folder = config['params']['upload_location']  # Fetch from config.json
+        prescription_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+        file.save(prescription_path)
 
-        # Ensure the directory exists
-        if not os.path.exists(upload_folder):
-            os.makedirs(upload_folder)
-
-        # Save the file in the UPLOAD_FOLDER and construct the relative path
-        file.save(os.path.join(upload_folder, filename))
-
-        # Store the relative path to be saved in the database
-        prescription_path = "images/" + filename  # This is the path relative to the static folder
-
-        # Generate a unique 4-digit booking code
+        # Generate booking code
         booking_code = str(random.randint(1000, 9999))
 
-        # Save the booking in the database
-        booking = LabTestBooking(
-            user_id=current_user.id,
-            test_category=DiagnosticDepartment.query.get(department_id).name,
-            test_name=DiagnosticTest.query.get(test_id).name,
-            hospital_id=hospital_id,
-            booking_date=booking_date,  # Save the booking date
-            prescription=prescription_path,  # Save the relative path to the prescription
-            booking_code=booking_code,
-            status='Pending'
-        )
-        db.session.add(booking)
-        db.session.commit()
+        # Save booking in the database
+        try:
+            booking = LabTestBooking(
+                user_id=current_user.id,
+                test_category=DiagnosticDepartment.query.get(department_id).name,
+                test_name=DiagnosticTest.query.get(test_id).name,
+                hospital_id=hospital_id,  # Now it's retrieved from the hidden field
+                booking_date=booking_date,
+                prescription=prescription_path,
+                booking_code=booking_code,
+                status='Pending'
+            )
+            db.session.add(booking)
+            db.session.commit()
 
-        # Send a confirmation email
+            flash('Lab test booked successfully!', 'success')
+
+        except Exception as e:
+            # If there is any error in saving, rollback the transaction and log the error
+            db.session.rollback()
+            print(f"Error saving booking: {e}")
+            flash('Error booking lab test. Please try again.', 'danger')
+            return redirect(url_for('user_bp.book_lab_test'))
+
+        # Send confirmation email (optional)
         hospital = Hospital.query.get(hospital_id)
         test = DiagnosticTest.query.get(test_id)
         msg = Message('Lab Test Booking Confirmation', recipients=[current_user.email])
-        msg.body = f"""
-        Dear {current_user.name},
-
-        Your lab test booking has been confirmed:
-        Test: {test.name}
-        Price: ₹{price}
-        Hospital: {hospital.name}
-        Booking Code: {booking_code}
-
-        Please show this code at the hospital on arrival.
-
-        Best regards,
-        Hospital Management System
-        """
+        msg.body = f"Your lab test booking has been confirmed: Test: {test.name}, Price: ₹{price}, Hospital: {hospital.name}"
         mail.send(msg)
 
-        flash('Lab test booked successfully! Confirmation email sent.', 'success')
         return redirect(url_for('user_bp.lab_test_booking_history'))
 
-    # Fetch available departments, tests, and hospitals for form selection
-    departments = DiagnosticDepartment.query.all()
-    return render_template('user_dashboard/book_lab_test.html', departments=departments)
+    # Fetch unique departments with hospital names
+    departments = db.session.query(
+        DiagnosticDepartment.id,
+        DiagnosticDepartment.name,
+        Hospital.name.label('hospital_name')
+    ).join(Hospital).all()
+
+    unique_departments = [{
+        'id': department.id,
+        'name': department.name,
+        'hospital_name': department.hospital_name
+    } for department in departments]
+
+    return render_template('user_dashboard/book_lab_test.html', unique_departments=unique_departments)
+
+
+
+
+# Fetch hospitals offering the selected department (by department ID)
+@user_bp.route('/get_hospital_by_department/<int:department_id>', methods=['GET'])
+@login_required
+def get_hospital_by_department(department_id):
+    # Fetch the hospital associated with the department
+    department = DiagnosticDepartment.query.get(department_id)
+    if department:
+        return jsonify({'hospital_id': department.hospital_id})
+    return jsonify({'error': 'Department not found'}), 404
+
+
+
+@user_bp.route('/get_tests_by_department/<int:department_id>', methods=['GET'])
+@login_required
+def get_tests_by_department(department_id):
+    tests = DiagnosticTest.query.filter_by(department_id=department_id).all()
+
+    return jsonify({
+        'tests': [{'id': test.id, 'name': test.name} for test in tests]
+    })
+
+
+# Fetch test price by test ID
+@user_bp.route('/get_test_price/<int:test_id>', methods=['GET'])
+@login_required
+def get_test_price(test_id):
+    test = DiagnosticTest.query.get(test_id)
+    return jsonify({'price': test.price})
 
 # Lab test booking history
 @user_bp.route('/lab_test_booking_history')
@@ -141,32 +169,43 @@ def view_check_ins():
 
     return render_template('user_dashboard/view_check_ins.html', bookings=bookings)
 
-# Fetch tests based on selected department
-@user_bp.route('/get_tests_by_department/<int:department_id>')
+
+
+@user_bp.route('/search_tests/<string:query>', methods=['GET'])
 @login_required
-def get_tests_by_department(department_id):
-    tests = DiagnosticTest.query.filter_by(department_id=department_id).all()
-    return jsonify({'tests': [{'id': test.id, 'name': test.name, 'price': test.price} for test in tests]})
+def search_tests(query):
+    # Search for tests by name (simple search query)
+    tests = DiagnosticTest.query.join(DiagnosticDepartment, DiagnosticTest.department_id == DiagnosticDepartment.id)\
+                                .join(Hospital, DiagnosticDepartment.hospital_id == Hospital.id)\
+                                .filter(DiagnosticTest.name.ilike(f'%{query}%')).all()
 
-# Fetch hospitals offering the selected test
-@user_bp.route('/get_hospitals_by_test/<int:test_id>')
+    results = []
+    for test in tests:
+        results.append({
+            'test_id': test.id,
+            'name': test.name,
+            'price': test.price,
+            'department_id': test.diagnostic_department.id,
+            'hospital_id': test.diagnostic_department.hospital.id,  # Include hospital_id
+            'hospital_name': test.diagnostic_department.hospital.name
+        })
+    return jsonify(results)
+
+
+@user_bp.route('/cancel_labtest_booking/<int:booking_id>', methods=['POST'])
 @login_required
-def get_hospitals_by_test(test_id):
-    # Fetch the test and join it with DiagnosticDepartment to get the hospital
-    hospitals = Hospital.query.join(DiagnosticDepartment, Hospital.id == DiagnosticDepartment.hospital_id) \
-                              .join(DiagnosticTest, DiagnosticTest.department_id == DiagnosticDepartment.id) \
-                              .filter(DiagnosticTest.id == test_id).all()
-    
-    # Fetch the test to get the price
-    test = DiagnosticTest.query.get(test_id)
-    
-    return jsonify({
-        'hospitals': [{'id': hospital.id, 'name': hospital.name} for hospital in hospitals],
-        'price': test.price
-    })
+def cancel_labtest_booking(booking_id):
+    booking = LabTestBooking.query.get_or_404(booking_id)
 
+    # Ensure the booking belongs to the current user
+    if booking.user_id != current_user.id:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
 
+    # Update booking status to 'Cancelled'
+    booking.status = 'Cancelled'
+    db.session.commit()
 
+    return jsonify({'success': True})
 
 
 

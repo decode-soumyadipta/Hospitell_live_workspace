@@ -525,7 +525,7 @@ def show_lab_test_bookings():
     return render_template('HOSPITAL/show_lab_test_bookings.html', bookings=bookings, hospital=hospital)
 
 # routes.py (hospital_bp)
-
+# routes.py (hospital_bp)
 @hospital_bp.route('/manage_diagnostic_departments', methods=['GET', 'POST'])
 @login_required
 def manage_diagnostic_departments():
@@ -570,6 +570,7 @@ def manage_diagnostic_departments():
     departments = DiagnosticDepartment.query.filter_by(hospital_id=hospital.id).all()
 
     return render_template('HOSPITAL/manage_diagnostic_departments.html', departments=departments, hospital=hospital)
+
 
 @hospital_bp.route('/book_lab_test', methods=['POST'])
 @login_required

@@ -246,33 +246,47 @@
           <span style="color: orangered;">Ask ResQ!</span>
         </a>
       </li><!-- End Profile Page Nav -->
+<!-- OPD Dropdown -->
+<li class="nav-item">
+  <a class="nav-link collapsed" data-bs-target="#opd-menu" data-bs-toggle="collapse" href="#">
+      <i class="bi-book"></i>
+      <span>OPD</span>
+      <i class="bi-chevron-down ms-auto"></i>
+  </a>
+  <ul id="opd-menu" class="nav-content collapse" data-bs-parent="#sidebar-nav">
+      <li>
+          <a href="{{ url_for('user_bp.book_opd') }}">
+              <i class="bi-book"></i><span>Book OPD Appointment</span>
+          </a>
+      </li>
+      <li>
+          <a href="{{ url_for('user_bp.view_appointments') }}">
+              <i class="bi-clock-history"></i><span>Upcoming OPD Appointments</span>
+          </a>
+      </li>
+  </ul>
+</li><!-- End OPD Dropdown -->
 
-      <li class="nav-item">
-        <a class="nav-link collapsed" href="{{ url_for('user_bp.book_opd') }}">
-          <i class="bi-book"></i>
-          <span>Book OPD Appointment</span>
-        </a>
-      </li><!-- End Error 404 Page Nav -->
-
-      <li class="nav-item">
-        <a class="nav-link collapsed" href="{{ url_for('user_bp.view_appointments') }}">
-          <i class="bi-clock-history "></i>
-          <span>Upcoming OPD Appointments</span>
-        </a>
-      </li><!-- End Contact Page Nav -->
-
-      <li class="nav-item">
-        <a class="nav-link collapsed" href="{{ url_for('user_bp.book_lab_test') }}">
-          <i class="bi-flower1 "></i>
-          <span>Book Lab Test</span>
-        </a>
-      </li><!-- End Contact Page Nav -->
-      <li class="nav-item">
-        <a class="nav-link collapsed" href="{{ url_for('user_bp.lab_test_booking_history') }}">
-          <i class="bi-clock "></i>
-          <span>Lab Test Booking History</span>
-        </a>
-      </li><!-- End Contact Page Nav -->
+<!-- Lab Tests Dropdown -->
+<li class="nav-item">
+  <a class="nav-link collapsed" data-bs-target="#lab-menu" data-bs-toggle="collapse" href="#">
+      <i class="bi-flower1"></i>
+      <span>Lab Tests</span>
+      <i class="bi-chevron-down ms-auto"></i>
+  </a>
+  <ul id="lab-menu" class="nav-content collapse" data-bs-parent="#sidebar-nav">
+      <li>
+          <a href="{{ url_for('user_bp.book_lab_test') }}">
+              <i class="bi-flower1"></i><span>Book Lab Test</span>
+          </a>
+      </li>
+      <li>
+          <a href="{{ url_for('user_bp.lab_test_booking_history') }}">
+              <i class="bi-clock"></i><span>Lab Test Booking History</span>
+          </a>
+      </li>
+  </ul>
+</li><!-- End Lab Tests Dropdown -->
 
       <li class="nav-item">
         <a class="nav-link collapsed" href="{{ url_for('user_bp.upload_medical_data') }}">

@@ -19,13 +19,14 @@
                         <table class="table table-bordered">
                             <thead>
                                 <tr>
-                                    <th>#</th>
+                                    <th>Sl no.</th>
                                     <th>Patient Name</th>
                                     <th>Test Category</th>
                                     <th>Test Name</th>
+                                    <th>Date</th>
                                     <th>Status</th>
                                     <th>Actions</th>
-                                </tr>
+                               </tr>
                             </thead>
                             <tbody>
                                 {% for booking in bookings %}
@@ -34,6 +35,8 @@
                                         <td>{{ booking.user.name }}</td>
                                         <td>{{ booking.test_category }}</td>
                                         <td>{{ booking.test_name }}</td>
+                                        <td>{{ booking.booking_date }}</td>
+                                        
                                         <td id="status-{{ booking.id }}">
                                             {% if booking.status == 'CheckedIn' %}
                                                 <span class="text-success">Checked In</span>
