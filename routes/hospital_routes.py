@@ -1,9 +1,11 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app, session
 from flask_login import login_required, current_user
-from models import db, Hospital, Ward, Bed, Booking, Notification, User, Department, Doctor, OPDAppointment, MaxPatient, LabTestBooking, Queue, DiagnosticDepartment, DiagnosticTest, Ambulance, LabTestQueue
+from models import db, Hospital, Ward, Bed, Booking, Notification, User, Department, Doctor, OPDAppointment, MaxPatient, LabTestBooking, Queue, DiagnosticDepartment, DiagnosticTest, Ambulance, LabTestQueue, OPDQueue
 from flask_mail import Message, Mail
 from datetime import datetime
 import os
+from sqlalchemy import func
+
 from werkzeug.utils import secure_filename
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -383,41 +385,106 @@ def verify_booking():
     return redirect(url_for('hospital_bp.show_lab_test_bookings'))
 
 
+
+@hospital_bp.route('/fetch_checked_in_patients', methods=['GET'])
+@login_required
+def fetch_checked_in_patients():
+    date = request.args.get('date')
+    doctor_id = request.args.get('doctor_id')
+    time_slot = request.args.get('time_slot')
+    hospital = current_user.hospitals[0]
+
+    # Fetch checked-in patients
+    patients = OPDAppointment.query.filter_by(
+        hospital_id=hospital.id,
+        appointment_date=date,
+        doctor_id=doctor_id,
+        time_slot=time_slot
+    ).all()
+
+    # Check for an existing queue
+    existing_queue = OPDQueue.query.filter_by(
+        doctor_id=doctor_id,
+        appointment_date=date,
+        time_slot=time_slot,
+        status='Pending'
+    ).order_by(OPDQueue.queue_number).all()
+
+    # Prepare patient data with status
+    patients_data = [
+        {
+            'name': patient.user.name,
+            'age': patient.user.age,
+            'status': patient.status
+        } for patient in patients
+    ]
+
+    # Prepare queue data, handling both regular and on-site registrations
+    queue_data = []
+    for entry in existing_queue:
+        if entry.patient_id and entry.patient:
+            # Regular patient with an OPDAppointment entry
+            queue_data.append({
+                'id': entry.patient_id,
+                'name': entry.patient.user.name,
+                'queue_number': entry.queue_number,
+                'type': 'Emergency' if entry.patient.is_emergency else 'Senior' if entry.patient.user.age >= 60 else 'Regular'
+            })
+        elif entry.onsite_name:
+            # On-site registered patient without an OPDAppointment
+            queue_data.append({
+                'id': entry.id,
+                'name': entry.onsite_name,
+                'queue_number': entry.queue_number,
+                'type': 'On-site'
+            })
+
+    return jsonify({'patients': patients_data, 'existingQueue': queue_data})
+
+
+
+
+
+
+
+
+
 @hospital_bp.route('/manage_virtual_queue', methods=['GET', 'POST'])
 @login_required
 def manage_virtual_queue():
     hospital = current_user.hospitals[0]
-    selected_date = request.args.get('date', datetime.utcnow().strftime('%Y-%m-%d'))
+    
+    # Set default date to today
+    selected_date = datetime.utcnow().strftime('%Y-%m-%d')
     doctor_id = request.args.get('doctor_id')
     time_slot = request.args.get('time_slot')
     
+    # Store selections in session
+    session['selected_date'] = selected_date
+    session['selected_doctor'] = doctor_id
+    session['selected_time_slot'] = time_slot
+
+    # Fetch all doctors in the hospital
     doctors = Doctor.query.filter_by(hospital_id=hospital.id).all()
     
+    # Prepare time slots based on the selected doctor
+    time_slots = []
+    selected_doctor = None
     if doctor_id:
         selected_doctor = Doctor.query.get(doctor_id)
         time_slots = selected_doctor.chamber_timings.split(',')
-    else:
-        selected_doctor = None
-        time_slots = []
+    
+    # Fetch the existing queue
+    existing_queue = []
+    if doctor_id and time_slot:
+        existing_queue = OPDQueue.query.filter_by(
+            doctor_id=doctor_id,
+            appointment_date=selected_date,
+            time_slot=time_slot
+        ).all()
 
-    if request.method == 'POST':
-        max_patients = request.form.get('max_patients')
-        if doctor_id and time_slot and max_patients.isdigit():
-            max_patients = int(max_patients)
-            max_patient_entry = MaxPatient.query.filter_by(doctor_id=doctor_id, time_slot=time_slot).first()
-            if max_patient_entry:
-                max_patient_entry.max_patients = max_patients
-            else:
-                max_patient_entry = MaxPatient(doctor_id=doctor_id, time_slot=time_slot, max_patients=max_patients)
-                db.session.add(max_patient_entry)
-            db.session.commit()
-            return jsonify(success=True)
-        else:
-            return jsonify(success=False)
-
+    # Fetch the patients based on selected date, doctor, and time slot
     patients = []
-    total_patients = 0
-    total_checked_in = 0
     if doctor_id and time_slot:
         patients = OPDAppointment.query.filter_by(
             hospital_id=hospital.id,
@@ -426,95 +493,255 @@ def manage_virtual_queue():
             time_slot=time_slot,
             status='CheckedIn'
         ).order_by(OPDAppointment.queue_number).all()
-        total_patients = OPDAppointment.query.filter_by(
-            hospital_id=hospital.id,
-            appointment_date=selected_date,
-            doctor_id=doctor_id,
-            time_slot=time_slot
-        ).count()
-        total_checked_in = len(patients)
 
+    # Render the template with the necessary context
     return render_template('HOSPITAL/manage_virtual_queue.html', 
                            patients=patients, 
                            hospital=hospital, 
                            doctors=doctors,
                            selected_date=selected_date,
-                           selected_doctor=doctor_id,
+                           selected_doctor=doctor_id,  
                            time_slots=time_slots,
                            selected_time_slot=time_slot,
-                           total_patients=total_patients,
-                           total_checked_in=total_checked_in)
+                           existing_queue=existing_queue)  # Pass existing queue
+
 
 @hospital_bp.route('/create_opd_queue', methods=['POST'])
 @login_required
 def create_opd_queue():
-    selected_date = request.args.get('date')
-    doctor_id = request.args.get('doctor_id')
-    time_slot = request.args.get('time_slot')
+    data = request.get_json()
+    selected_date = data.get('date')
+    doctor_id = data.get('doctor_id')
+    time_slot = data.get('time_slot')
     hospital = current_user.hospitals[0]
 
-    if not doctor_id:
-        return jsonify(success=False, error="Doctor ID is required."), 400
+    # Fetch patients with CheckedIn status in OPDAppointment
+    checked_in_patients = OPDAppointment.query.filter_by(
+        hospital_id=hospital.id,
+        appointment_date=selected_date,
+        doctor_id=doctor_id,
+        time_slot=time_slot,
+        status='CheckedIn'
+    ).all()
 
-    try:
-        patients = OPDAppointment.query.filter_by(
-            hospital_id=hospital.id,
-            appointment_date=selected_date,
+    queue_data = []
+
+    # Create the queue using only CheckedIn patients and avoid duplicates
+    for patient in checked_in_patients:
+        # Check if this patient is already in the queue to avoid duplicates
+        existing_entry = OPDQueue.query.filter_by(patient_id=patient.id, doctor_id=doctor_id, appointment_date=selected_date, time_slot=time_slot).first()
+        if not existing_entry:
+            queue_data.append({
+                'id': patient.id,
+                'name': patient.user.name,
+                'is_emergency': patient.is_emergency,
+                'is_senior': patient.user.age >= 60
+            })
+
+    # Sort the queue based on priority
+    queue_data.sort(key=lambda x: (not x['is_emergency'], not x['is_senior']))
+
+    # Assign queue numbers based on the sorted order
+    for index, patient in enumerate(queue_data, start=1):
+        # Add new queue entry
+        queue_entry = OPDQueue(
+            patient_id=patient['id'],
+            queue_number=index,
             doctor_id=doctor_id,
+            appointment_date=selected_date,
             time_slot=time_slot,
-            status='CheckedIn'
-        ).all()
+            status='Pending'  # Initial status set to Pending
+        )
+        db.session.add(queue_entry)
 
-        if not patients:
-            return jsonify(success=False, error="No patients found to create the queue.")
+    db.session.commit()
 
-        sorted_patients = sorted(patients, key=lambda x: (
-            not x.is_emergency,  
-            x.user.age < 60, 
-            x.id
-        ))
+    # Prepare the response data
+    response_queue_data = [{
+        'id': patient['id'],
+        'queue_number': index,
+        'name': patient['name'],
+        'type': 'Emergency' if patient['is_emergency'] else 'Senior' if patient['is_senior'] else 'Regular'
+    } for index, patient in enumerate(queue_data, start=1)]
 
-        for index, patient in enumerate(sorted_patients, start=1):
-            patient.queue_number = index
-            db.session.commit()
+    return jsonify(success=True, queue=response_queue_data)
 
-            # Send email to all patients in the queue with their queue number
-            msg = Message('Your OPD Queue Number', recipients=[patient.user.email])
-            msg.body = f"""
-            Dear {patient.user.name},
 
-            You have been assigned queue number {patient.queue_number} for your OPD appointment with Dr. {patient.doctor.name} on {patient.appointment_date} at {patient.time_slot}.
+@hospital_bp.route('/update_onsite_patient_status/<int:patient_id>', methods=['POST'])
+@login_required
+def update_onsite_patient_status(patient_id):
+    """
+    Update status for onsite registered patients and send a completion email.
+    """
+    opd_queue_entry = OPDQueue.query.filter_by(id=patient_id, status='Pending').first()
+    
+    if opd_queue_entry and opd_queue_entry.onsite_name:
+        opd_queue_entry.status = 'Done'
+        db.session.commit()
 
-            Please be prepared to meet the doctor.
-
-            Best regards,
-            Hospital Management System
-            """
+        # Send thank-you email to the onsite patient if an email is provided
+        if opd_queue_entry.onsite_email:
+            msg = Message('Your Onsite OPD Registration Completion', recipients=[opd_queue_entry.onsite_email])
+            msg.body = f"Dear {opd_queue_entry.onsite_name}, your appointment has been marked as done. Thank you!"
             mail.send(msg)
 
-            # Notify patient when 5 people are ahead in the queue
-            if index == len(sorted_patients) - 5:
-                msg = Message('Queue Update: 5 People Ahead', recipients=[patient.user.email])
-                msg.body = f"""
-                Dear {patient.user.name},
+        # Fetch updated queue without "Done" entries
+        updated_queue = get_current_queue(
+            doctor_id=opd_queue_entry.doctor_id,
+            appointment_date=opd_queue_entry.appointment_date,
+            time_slot=opd_queue_entry.time_slot
+        )
 
-                There are 5 people ahead of you in the queue for your OPD appointment with Dr. {patient.doctor.name} on {patient.appointment_date} at {patient.time_slot}.
+        filtered_queue = [
+            {
+                'id': entry.id,
+                'queue_number': entry.queue_number,
+                'name': entry.onsite_name if entry.onsite_name else entry.patient.user.name,
+                'type': 'On-site' if entry.onsite_name else 'Regular'
+            } for entry in updated_queue
+        ]
+        return jsonify(success=True, updatedQueue=filtered_queue), 200
 
-                Please be prepared to meet the doctor shortly.
-
-                Best regards,
-                Hospital Management System
-                """
-                mail.send(msg)
-
-        return jsonify(success=True), 200
-
-    except Exception as e:
-        return jsonify(success=False, error=str(e)), 500
-
+    return jsonify(success=False, error="Onsite patient not found or already done."), 400
 
 
 
+@hospital_bp.route('/register_patient', methods=['POST'])
+@login_required
+def register_patient():
+    data = request.json
+    name = data['name']
+    email = data.get('email')
+    age = data.get('age')
+    date = data['date']
+    doctor_id = data['doctor_id']
+    time_slot = data['time_slot']
+
+    max_queue_number = db.session.query(func.max(OPDQueue.queue_number)).filter_by(
+        appointment_date=date, doctor_id=doctor_id, time_slot=time_slot
+    ).scalar() or 0
+
+    queue_entry = OPDQueue(
+        onsite_name=name,
+        onsite_email=email,  # Store onsite email
+        onsite_age=age,      # Store onsite age
+        queue_number=max_queue_number + 1,
+        doctor_id=doctor_id,
+        appointment_date=date,
+        time_slot=time_slot,
+        status='Pending'
+    )
+    db.session.add(queue_entry)
+    db.session.commit()
+
+    return jsonify({
+        'queue_id': queue_entry.id,
+        'queue_number': queue_entry.queue_number,
+        'onsite_name': queue_entry.onsite_name
+    })
+
+def get_current_queue(doctor_id, appointment_date, time_slot):
+    return OPDQueue.query.filter(
+        OPDQueue.doctor_id == doctor_id,
+        OPDQueue.appointment_date == appointment_date,
+        OPDQueue.time_slot == time_slot,
+        OPDQueue.status == 'Pending'
+    ).order_by(OPDQueue.queue_number).all()
+
+
+
+
+
+
+@hospital_bp.route('/get_max_queue_number_opd', methods=['GET'])
+@login_required
+def get_max_queue_number_opd():
+    date = request.args.get('date')
+    doctor_id = request.args.get('doctor_id')
+    time_slot = request.args.get('time_slot')
+
+    max_queue_number = db.session.query(func.max(OPDQueue.queue_number)).filter_by(
+        appointment_date=date, doctor_id=doctor_id, time_slot=time_slot
+    ).scalar() or 0
+
+    return jsonify({'max_queue_number': max_queue_number})
+
+
+
+
+
+
+
+@hospital_bp.route('/update_patient_status/<int:patient_id>', methods=['POST'])
+@login_required
+def update_patient_status(patient_id):
+    # Only update if the patient is in Pending status in OPDQueue and CheckedIn in OPDAppointment
+    opd_queue_entry = OPDQueue.query.filter_by(patient_id=patient_id, status='Pending').first()
+    patient = OPDAppointment.query.get(patient_id)
+
+    if opd_queue_entry and patient and patient.status == 'CheckedIn':
+        # Update status to Done in both OPDQueue and OPDAppointment models
+        opd_queue_entry.status = 'Done'
+        patient.status = 'Done'
+        db.session.commit()
+
+        # Send thank-you email to the patient
+        msg = Message('Your OPD Appointment Update', recipients=[patient.user.email])
+        msg.body = f"Dear {patient.user.name}, your appointment has been marked as done. Thank you!"
+        mail.send(msg)
+
+        # Fetch the updated queue without the Done status patients
+        updated_queue = get_current_queue(doctor_id=opd_queue_entry.doctor_id, 
+                                          appointment_date=opd_queue_entry.appointment_date, 
+                                          time_slot=opd_queue_entry.time_slot)
+        filtered_queue = [{'id': patient.patient_id, 'queue_number': patient.queue_number, 'name': patient.patient.user.name, 
+                           'type': 'Emergency' if patient.patient.is_emergency else 'Senior' if patient.patient.user.age >= 60 else 'Regular'} 
+                          for patient in updated_queue]
+
+        return jsonify(success=True, updatedQueue=filtered_queue), 200
+
+    return jsonify(success=False, error="Patient not found in queue or not eligible for update."), 400
+
+
+def get_current_queue(doctor_id, appointment_date, time_slot):
+    """
+    Retrieve the current queue with Pending patients only in OPDQueue, keeping their original queue number intact.
+    """
+    return OPDQueue.query.join(OPDAppointment, OPDAppointment.id == OPDQueue.patient_id).filter(
+        OPDQueue.doctor_id == doctor_id,
+        OPDQueue.appointment_date == appointment_date,
+        OPDQueue.time_slot == time_slot,
+        OPDQueue.status == 'Pending',           # Fetch only Pending status from OPDQueue
+           ################ # Fetch only CheckedIn status from OPDAppointment
+    ).order_by(OPDQueue.queue_number).all()
+
+
+@hospital_bp.route('/notify_upcoming_patients', methods=['POST'])
+@login_required
+def notify_upcoming_patients():
+    updated_queue = get_current_queue()  # Assuming a helper function to fetch the current queue
+
+    # Notify the next four patients
+    for patient_entry in updated_queue[:4]:  
+        patient = OPDAppointment.query.get(patient_entry.patient_id)
+        msg = Message('Queue Update', recipients=[patient.user.email])
+        msg.body = f"Hello {patient.user.name}, you are now #{patient_entry.queue_number} in the queue."
+        mail.send(msg)
+
+    return jsonify(success=True), 200
+
+@hospital_bp.route('/get_time_slots_opd/<int:doctor_id>', methods=['GET'])
+@login_required
+def get_time_slots_opd(doctor_id):
+    date = request.args.get('date')
+    # Assuming you have a method to get available time slots for a doctor on a specific date
+    doctor = Doctor.query.get(doctor_id)
+    if not doctor:
+        return jsonify({'time_slots': []})
+
+    # Fetch time slots based on the doctor's schedule
+    time_slots = doctor.chamber_timings.split(',')  # Example: Assuming chamber_timings is a comma-separated string
+    return jsonify({'time_slots': time_slots})
 
 @hospital_bp.route('/show_lab_test_bookings', methods=['GET'])
 @login_required
@@ -686,6 +913,7 @@ def manage_lab_test_queue():
     ).distinct(DiagnosticTest.name).all()
     return render_template('HOSPITAL/manage_lab_test_queue.html', tests=tests, hospital=hospital)
 
+
 @hospital_bp.route('/create_lab_test_queue', methods=['POST'])
 @login_required
 def create_lab_test_queue():
@@ -734,31 +962,72 @@ def create_lab_test_queue():
     db.session.commit()
     return jsonify(success=True, message="Lab test queue created successfully!")
 
+
 @hospital_bp.route('/api/mark_done/<int:patient_id>', methods=['POST'])
 @login_required
 def mark_done(patient_id):
     try:
+        # Fetch patient booking entry
         patient = LabTestBooking.query.get_or_404(patient_id)
-        
-        # Update the booking status to DONE
-        patient.status = 'DONE'
-        
-        # Remove the patient from the queue
-        LabTestQueue.query.filter_by(lab_test_booking_id=patient.id).delete()
-        db.session.commit()
-
-        # Send a thank-you email with test details
         test_name = patient.test_name
         test_date = patient.booking_date.strftime('%Y-%m-%d')
-        msg = Message("Thank you for visiting", recipients=[patient.user.email])
-        msg.body = (f"Dear {patient.user.name},\n\n"
-                    f"Thank you for completing your lab test for '{test_name}' on {test_date}.\n"
-                    f"We appreciate your visit.\n\nBest regards,\nYour Hospital Team")
-        mail.send(msg)
+        hospital_id = patient.hospital_id
+
+        # Update the booking status to DONE
+        patient.status = 'DONE'
+        db.session.commit()
+
+        # Fetch and delete the queue entry for the patient
+        queue_entry = LabTestQueue.query.filter_by(lab_test_booking_id=patient_id).first()
+        if queue_entry:
+            current_queue_number = queue_entry.queue_number
+            db.session.delete(queue_entry)
+            db.session.commit()
+
+            # Send thank-you email after successfully marking as done
+            msg = Message("Thank you for visiting", recipients=[patient.user.email])
+            msg.body = (f"Dear {patient.user.name},\n\n"
+                        f"Thank you for completing your lab test for '{test_name}' on {test_date}.\n"
+                        f"We appreciate your visit.\n\nBest regards,\nYour Hospital Team")
+            mail.send(msg)
+
+            # Notify the next patients in the queue
+            notify_next_users(current_queue_number, test_name, test_date, hospital_id)
+        else:
+            print(f"Queue number not found for patient_id: {patient_id}")
 
         return jsonify(success=True)
     except Exception as e:
+        db.session.rollback()
+        print(f"Error marking patient as done: {e}")
         return jsonify(success=False, error=str(e))
+
+
+
+
+def notify_next_users(current_queue_number, test_name, test_date, hospital_id):
+    """Notify up to five patients behind the current patient in the queue."""
+    try:
+        # Retrieve up to 5 patients immediately following the current queue number
+        next_patients = LabTestQueue.query.filter(
+            LabTestQueue.hospital_id == hospital_id,
+            LabTestQueue.test_name == test_name,
+            LabTestQueue.booking_date == test_date,
+            LabTestQueue.queue_number > current_queue_number  # Only those with a greater queue number
+        ).order_by(LabTestQueue.queue_number).limit(5).all()
+
+        # Send notification emails to the next patients
+        for patient in next_patients:
+            msg = Message("Lab Test Queue Update", recipients=[patient.lab_test_booking.user.email])
+            msg.body = (f"Dear {patient.lab_test_booking.user.name},\n\n"
+                        f"The patient with queue number {current_queue_number} has completed their test. "
+                        f"Your queue number is {patient.queue_number}. Please be ready.\n\nThank you.")
+            mail.send(msg)
+
+    except Exception as e:
+        print(f"Error notifying next patients: {e}")
+
+
 
 @hospital_bp.route('/api/get_queue', methods=['GET'])
 @login_required
@@ -1071,60 +1340,60 @@ def verify_test_booking_code(booking_id):
 
 
 
-@hospital_bp.route('/update_patient_status/<int:appointment_id>', methods=['POST'])
-@login_required
-def update_patient_status(appointment_id):
-    appointment = OPDAppointment.query.get_or_404(appointment_id)
-    completed_queue_number = appointment.queue_number
-
-    if completed_queue_number is None:
-        return jsonify(success=False, error="Queue number is not set for this appointment."), 400
-
-    appointment.status = 'Done'
-    db.session.commit()
-
-    # Send a final confirmation email to the patient
-    msg = Message('OPD Appointment Completed', recipients=[appointment.user.email])
-    msg.body = f"""
-    Dear {appointment.user.name},
-
-    Your OPD appointment with Dr. {appointment.doctor.name} on {appointment.appointment_date} at {appointment.time_slot} is completed.
-    Thank you for using our services.
-
-    Best regards,
-    Hospital Management System
-    """
-    mail.send(msg)
-
-    # Notify all remaining patients in the queue
-    remaining_patients = OPDAppointment.query.filter(
-        OPDAppointment.hospital_id == appointment.hospital_id,
-        OPDAppointment.appointment_date == appointment.appointment_date,
-        OPDAppointment.status == 'CheckedIn',
-        OPDAppointment.queue_number.isnot(None),  # Ensure queue_number is not None
-        OPDAppointment.queue_number > completed_queue_number
-    ).order_by(OPDAppointment.queue_number).all()
-
-    for patient in remaining_patients:
-        send_queue_update_email(patient.queue_number, patient)
-    
-    flash('Patient status updated successfully', 'success')
-    return jsonify(success=True)
-
-def send_queue_update_email(queue_number, patient):
-    msg = Message('Queue Update: Your Position', recipients=[patient.user.email])
-    msg.body = f"""
-    Dear {patient.user.name},
-
-    Your queue number is now {queue_number}.
-
-    Please be prepared to meet the doctor shortly.
-
-    Best regards,
-    Hospital Management System
-    """
-    mail.send(msg)
-
+#@hospital_bp.route('/update_patient_status/<int:appointment_id>', methods=['POST'])
+#@login_required
+#def update_patient_status(appointment_id):
+#    appointment = OPDAppointment.query.get_or_404(appointment_id)
+#    completed_queue_number = appointment.queue_number
+#
+#    if completed_queue_number is None:
+#        return jsonify(success=False, error="Queue number is not set for this appointment."), 400
+#
+#    appointment.status = 'Done'
+#    db.session.commit()
+#
+#    # Send a final confirmation email to the patient
+#    msg = Message('OPD Appointment Completed', recipients=[appointment.user.email])
+#    msg.body = f"""
+#    Dear {appointment.user.name},
+#
+#    Your OPD appointment with Dr. {appointment.doctor.name} on {appointment.appointment_date} at {appointment.time_slot} is completed.
+#    Thank you for using our services.
+#
+#    Best regards,
+#    Hospital Management System
+#    """
+#    mail.send(msg)
+#
+#    # Notify all remaining patients in the queue
+#    remaining_patients = OPDAppointment.query.filter(
+#        OPDAppointment.hospital_id == appointment.hospital_id,
+#        OPDAppointment.appointment_date == appointment.appointment_date,
+#        OPDAppointment.status == 'CheckedIn',
+#        OPDAppointment.queue_number.isnot(None),  # Ensure queue_number is not None
+#        OPDAppointment.queue_number > completed_queue_number
+#    ).order_by(OPDAppointment.queue_number).all()
+#
+#    for patient in remaining_patients:
+#        send_queue_update_email(patient.queue_number, patient)
+#    
+#    flash('Patient status updated successfully', 'success')
+#    return jsonify(success=True)
+#
+#def send_queue_update_email(queue_number, patient):
+#    msg = Message('Queue Update: Your Position', recipients=[patient.user.email])
+#    msg.body = f"""
+#    Dear {patient.user.name},
+#
+#    Your queue number is now {queue_number}.
+#
+#    Please be prepared to meet the doctor shortly.
+#
+#    Best regards,
+#    Hospital Management System
+#    """
+#    mail.send(msg)
+#
 
 @hospital_bp.route('/get_departments/<int:hospital_id>', methods=['GET'])
 @login_required
@@ -1148,29 +1417,90 @@ def manage_departments():
 
     if request.method == 'POST':
         department_name = request.form.get('department_name')
+        image_path = None
 
         # Handle department image upload
         if 'department_image' in request.files:
             file = request.files['department_image']
-            if file and allowed_file(file.filename):
+            if file and allowed_file(file.filename):  # Ensure the allowed_file function is defined
                 filename = secure_filename(file.filename)
                 filepath = os.path.join(current_app.config['UPLOAD_LOCATION'], filename)
                 file.save(filepath)
                 image_path = os.path.join('images/', filename)
-            else:
-                image_path = None
-        else:
-            image_path = None
 
+        # Create and add department to the database
         department = Department(name=department_name, image=image_path, hospital_id=hospital.id)
         db.session.add(department)
         db.session.commit()
-        flash('Department added successfully', 'success')
+        flash('Department added successfully!', 'success')
+        
+        # Redirect to prevent form resubmission on refresh
+        return redirect(url_for('hospital_bp.manage_departments'))
 
+    # Retrieve all departments for the hospital
     departments = Department.query.filter_by(hospital_id=hospital.id).all()
-
     return render_template('HOSPITAL/manage_departments.html', departments=departments, hospital=hospital)
 
+@hospital_bp.route('/delete_department/<int:department_id>', methods=['POST'])
+@login_required
+def delete_department(department_id):
+    department = Department.query.get_or_404(department_id)
+    hospital = current_user.hospitals[0]
+
+    # Ensure the department belongs to the current user's hospital
+    if department.hospital_id != hospital.id:
+        return jsonify(success=False, message="Unauthorized action."), 403
+
+    # Check if there are associated doctors
+    associated_doctors = department.doctors
+    if associated_doctors:
+        return jsonify(success=False, message="This department has registered doctors."), 400
+
+    # Proceed to delete the department if no associated doctors
+    try:
+        # Delete the department image if it exists
+        if department.image:
+            image_path = os.path.join(current_app.static_folder, department.image)
+            if os.path.exists(image_path):
+                os.remove(image_path)
+
+        db.session.delete(department)
+        db.session.commit()
+
+        return jsonify(success=True, message="Department deleted successfully.")
+    except Exception as e:
+        db.session.rollback()
+        return jsonify(success=False, message="An error occurred during deletion. Please try again."), 500
+
+
+@hospital_bp.route('/delete_department_confirm/<int:department_id>', methods=['POST'])
+@login_required
+def delete_department_confirm(department_id):
+    department = Department.query.get_or_404(department_id)
+    hospital = current_user.hospitals[0]
+
+    # Ensure the department belongs to the current user's hospital
+    if department.hospital_id != hospital.id:
+        return jsonify(success=False, message="Unauthorized action."), 403
+
+    try:
+        # Delete associated doctors
+        for doctor in department.doctors:
+            db.session.delete(doctor)
+
+        # Delete the department image if it exists
+        if department.image:
+            image_path = os.path.join(current_app.static_folder, department.image)
+            if os.path.exists(image_path):
+                os.remove(image_path)
+
+        db.session.delete(department)
+        db.session.commit()
+
+        return jsonify(success=True, message="Department and associated doctors deleted successfully.")
+    except Exception as e:
+        db.session.rollback()
+        return jsonify(success=False, message="An error occurred during deletion. Please try again."), 500
 
 @hospital_bp.route('/manage_doctors', methods=['GET', 'POST'])
 @login_required
@@ -1194,6 +1524,16 @@ def manage_doctors():
     departments = Department.query.filter_by(hospital_id=hospital.id).all()
     doctors = Doctor.query.filter_by(hospital_id=hospital.id).all()
     return render_template('HOSPITAL/manage_doctors.html', doctors=doctors, departments=departments, hospital=hospital)
+
+@hospital_bp.route('/delete_doctor/<int:doctor_id>', methods=['POST'])
+@login_required
+def delete_doctor(doctor_id):
+    doctor = Doctor.query.get_or_404(doctor_id)
+    if doctor:
+        db.session.delete(doctor)
+        db.session.commit()
+        flash('Doctor deleted successfully', 'success')
+    return redirect(url_for('hospital_bp.manage_doctors'))
 
 
 @hospital_bp.route('/get_doctors/<int:department_id>', methods=['GET'])

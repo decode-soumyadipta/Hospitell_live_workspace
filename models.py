@@ -33,6 +33,7 @@ class Posts(db.Model):
     img_file = db.Column(db.String(60), nullable=True)
 
 class User(UserMixin, db.Model):
+    __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), nullable=False, unique=True)
     email = db.Column(db.String(150), unique=True, nullable=False)
@@ -295,7 +296,9 @@ class Doctor(db.Model):
 
 
 
+
 class OPDAppointment(db.Model):
+    __tablename__ = 'opd_appointment'  # Ensure this matches your actual table name
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     doctor_id = db.Column(db.Integer, db.ForeignKey('doctor.id'), nullable=False)
@@ -306,10 +309,30 @@ class OPDAppointment(db.Model):
     status = db.Column(db.String(20), default='Pending')  # Pending, CheckedIn, Done
     hospital_id = db.Column(db.Integer, db.ForeignKey('hospital.id'), nullable=False)
     is_emergency = db.Column(db.Boolean, default=False)  # New field for emergency status
+    is_on_spot = db.Column(db.Boolean, default=False)  # New field for on-spot registration
+
     # Relationships
     user = db.relationship('User', back_populates='opd_appointments')
     doctor = db.relationship('Doctor', backref='appointments')
     hospital = db.relationship('Hospital', backref='opd_appointments')
+
+
+
+class OPDQueue(db.Model):
+    __tablename__ = 'opd_queue'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('opd_appointment.id'))
+    onsite_name = db.Column(db.String(50), nullable=True)  # Temporary name for on-site patients
+    onsite_email = db.Column(db.String(100), nullable=True)  # Temporary email for onsite patients
+    onsite_age = db.Column(db.Integer, nullable=True)        # Temporary age for onsite patients
+    queue_number = db.Column(db.Integer, nullable=False)
+    doctor_id = db.Column(db.Integer, db.ForeignKey('doctor.id'), nullable=False)
+    appointment_date = db.Column(db.Date, nullable=False)
+    time_slot = db.Column(db.String(50), nullable=False)
+    status = db.Column(db.String(20), default='Pending')  # e.g., Pending, Done
+    
+    patient = db.relationship('OPDAppointment', backref='opd_queues')
 
 
 # models.py

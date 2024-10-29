@@ -6,109 +6,132 @@
     <div class="pagetitle">
         <h1>Manage Virtual Queue for {{ hospital.name }}</h1>
     </div>
-
-    <div class="container mt-4">
-        <form id="queueForm" method="GET" action="{{ url_for('hospital_bp.manage_virtual_queue') }}">
-            <div class="form-group">
-                <label for="date">Select Date:</label>
-                <input type="date" name="date" value="{{ selected_date }}" onchange="fetchTimeSlots()">
-            </div>
-            <div class="form-group">
-                <label for="doctor_id">Select Doctor:</label>
-                <select name="doctor_id" id="doctorSelect" required onchange="fetchTimeSlots()">
-                    <option value="">Select Doctor</option>
-                    {% for doctor in doctors %}
-                    <option value="{{ doctor.id }}" {% if doctor.id == selected_doctor %}selected{% endif %}>{{ doctor.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="time_slot">Select Time Slot:</label>
-                <select name="time_slot" id="timeSlotSelect" required>
-                    <option value="">Select Time Slot</option>
-                    {% for slot in time_slots %}
-                    <option value="{{ slot }}" {% if slot == selected_time_slot %}selected{% endif %}>{{ slot }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <button type="submit" class="btn btn-primary mt-3">Show Patients</button>
-        </form>
-
-        {% if selected_doctor and selected_time_slot %}
-        <form id="setMaxPatientsForm" method="POST" action="javascript:void(0);" onsubmit="setMaxPatients()">
-            <input type="hidden" name="date" value="{{ selected_date }}">
-            <input type="hidden" name="doctor_id" value="{{ selected_doctor }}">
-            <input type="hidden" name="time_slot" value="{{ selected_time_slot }}">
-            <div class="form-group">
-                <label for="max_patients">Max Patients for {{ selected_time_slot }}:</label>
-                <input type="number" name="max_patients" id="maxPatientsInput" value="{{ max_patients }}">
-            </div>
-            <button type="submit" class="btn btn-primary mt-3">Set Max Patients</button>
-        </form>
-        {% endif %}
-
-        {% if patients %}
-        <button class="btn btn-success mt-4" onclick="createQueue()">Create Queue</button>
-       
-        <h3 class="mt-4">Checked-In Patients for {{ selected_date }}</h3>
-        <div id="queue-visualization" class="mt-4 d-flex flex-wrap justify-content-center queue-box">
-            {% for patient in patients %}
-                <div class="queue-circle {% if patient.is_emergency %}queue-emergency{% elif patient.user.age >= 60 %}queue-senior{% endif %}" id="patient-{{ patient.id }}" onclick="updatePatientStatus({{ patient.id }})">
-                    <span class="queue-number">{{ patient.queue_number }}</span>
-                    <p class="patient-name">{{ patient.user.name }}</p>
-                </div>
-            {% endfor %}
+    <div id="loader" class="loader" style="display: none;">
+        <div class="loader-content">
+            Loading...
         </div>
-        {% else %}
-            <div class="alert alert-info mt-4">No patients found for the selected date.</div>
-        {% endif %}
-
-        {% if waiting_list_patients %}
-        <h3 class="mt-4">Waiting List</h3>
-        <div id="waiting-list-visualization" class="mt-4 d-flex flex-wrap justify-content-center waiting-list-box">
-            {% for patient in waiting_list_patients %}
-                <div class="queue-circle queue-waiting" id="waiting-patient-{{ patient.id }}">
-                    <span class="queue-number">WL</span>
-                    <p class="patient-name">{{ patient.user.name }}</p>
-                </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <h3 class="mt-5">On-Spot Patient Registration</h3>
-        <div class="alert alert-info mt-4">
-            <strong>Note:</strong> If the maximum number of patients for today is reached, the patient will be placed on the waiting list.
-        </div>
-
-        <form id="onSpotRegistrationForm" method="POST" action="javascript:void(0);" onsubmit="onSpotRegistration()">
-            <div class="form-group">
-                <label for="name">Patient Name:</label>
-                <input type="text" name="name" class="form-control" required>
-            </div>
-            <div class="form-group">
-                <label for="email">Patient Email:</label>
-                <input type="email" name="email" class="form-control" required>
-            </div>
-            <div class="form-group">
-                <label for="age">Patient Age:</label>
-                <input type="number" name="age" class="form-control" required>
-            </div>
-            <div class="form-group">
-                <label for="is_emergency">Emergency Status:</label>
-                <input type="checkbox" name="is_emergency" value="true">
-            </div>
-            <button type="submit" class="btn btn-primary">Register Patient</button>
-        </form>
     </div>
+    <div class="container mt-4">
+        <!-- Filters for Date, Doctor, and Time Slot Selection -->
+        <div class="card p-3 mb-4">
+            <div class="d-flex justify-content-between">
+                <div class="form-group">
+                    <label for="date" class="font-weight-bold">Date:</label>
+                    <input type="date" id="dateInput" value="{{ selected_date }}" class="form-control" onchange="checkFormValidity()">
+                </div>
+                <div class="form-group">
+                    <label for="doctor_id" class="font-weight-bold">Doctor:</label>
+                    <select id="doctorSelect" class="form-control" onchange="fetchTimeSlots(); checkFormValidity()">
+                        <option value="">Select Doctor</option>
+                        {% for doctor in doctors %}
+                        <option value="{{ doctor.id }}" {% if doctor.id == selected_doctor %}selected{% endif %}>{{ doctor.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="time_slot" class="font-weight-bold">Time Slot:</label>
+                    <select id="timeSlotSelect" class="form-control" onchange="checkFormValidity()">
+                        <option value="">Select Time Slot</option>
+                        {% for slot in time_slots %}
+                        <option value="{{ slot }}" {% if slot == selected_time_slot %}selected{% endif %}>{{ slot }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <!-- Centered Show Patients Button -->
+            <button id="showPatientsBtn" class="btn btn-primary mt-3 d-block mx-auto" disabled onclick="fetchCheckedInPatients()">Show Patients</button>
+        </div>
+
+        <!-- Table for Showing Checked-In Patients -->
+        <div class="card mt-4">
+            <div class="card-body"><br>
+                <h3>Checked-In Patients</h3>
+                <div id="patientTableWrapper" class="table-responsive">
+                    <table class="table table-bordered table-striped mt-3" id="patientTable">
+                        <thead>
+                            <tr>
+                                <th>Serial No.</th>
+                                <th>Patient Name</th>
+                                <th>Age</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="patientList">
+                            <!-- Checked-in patients will be dynamically populated here -->
+                        </tbody>
+                    </table>
+                </div>
+                <button id="createQueueBtn" class="btn btn-success mt-4" style="display:none;" onclick="createQueue()">Create Queue</button>
+                <div id="queueExistsMessage" class="alert alert-info mt-4" style="display:none;">Queue Already Created</div>
+            </div>
+        </div>
+
+        <!-- Queue Visualization -->
+        <div class="card mt-4">
+            <div class="card-body"><br>
+                <h3>Queue Visualization</h3>
+                <div id="queueVisualization" class="d-flex flex-wrap mt-3">
+                    <!-- Patient circles in queue will be rendered here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    
+    <div class="card mt-4" id="registrationCard" style="display: none;">
+        <div class="card-body"><br>
+            <h3>On-Site Registration</h3>
+            <form id="registrationForm" onsubmit="registerPatient(event)">
+                <div class="form-group">
+                    <label for="patientName">Patient Name:</label>
+                    <input type="text" id="patientName" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="patientAge">Patient Age:</label>
+                    <input type="number" id="patientAge" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="patientEmail">Patient Email:</label>
+                    <input type="email" id="patientEmail" class="form-control" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Register Patient</button>
+            </form>
+        </div>
+    </div>
+    
+
 </main>
 
 <script>
+ function showLoader() {
+    document.getElementById('loader').style.display = 'flex';
+    document.getElementById('loader').classList.add('loader-active');
+}
+
+function hideLoader() {
+    document.getElementById('loader').style.display = 'none';
+    document.getElementById('loader').classList.remove('loader-active');
+}
+
+function fetchMaxQueueNumber(date, doctorId, timeSlot) {
+    return fetch(`/get_max_queue_number_opd?date=${date}&doctor_id=${doctorId}&time_slot=${timeSlot}`)
+        .then(response => response.json())
+        .then(data => data.max_queue_number)
+        .catch(error => {
+            console.error('Error fetching max queue number:', error);
+            return 0;
+        });
+}
+
 function fetchTimeSlots() {
     const doctorId = document.querySelector('#doctorSelect').value;
-    const date = document.querySelector('input[name="date"]').value;
+    const date = document.querySelector('#dateInput').value;
 
     if (doctorId && date) {
-        fetch(`/get_time_slots/${doctorId}?date=${date}`)
+        showLoader();
+        fetch(`/get_time_slots_opd/${doctorId}?date=${date}`)
             .then(response => response.json())
             .then(data => {
                 const timeSlotSelect = document.getElementById('timeSlotSelect');
@@ -119,167 +142,269 @@ function fetchTimeSlots() {
                     option.textContent = slot;
                     timeSlotSelect.appendChild(option);
                 });
+                hideLoader();
+            })
+            .catch(error => {
+                console.error('Error fetching time slots:', error);
+                hideLoader();
             });
     }
 }
 
-function setMaxPatients() {
-    const formData = new FormData(document.getElementById('setMaxPatientsForm'));
+function checkFormValidity() {
+    const date = document.getElementById('dateInput').value;
+    const doctorId = document.getElementById('doctorSelect').value;
+    const timeSlot = document.getElementById('timeSlotSelect').value;
 
-    fetch('{{ url_for("hospital_bp.set_max_patients") }}', {
-        method: 'POST',
-        body: formData,
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Max patients set successfully');
-            fetchTimeSlots();
-        } else {
-            alert('Failed to set max patients');
-        }
-    });
+    document.getElementById('showPatientsBtn').disabled = !(date && doctorId && timeSlot);
+}
+
+function fetchCheckedInPatients() {
+    showLoader();
+    const date = document.getElementById('dateInput').value;
+    const doctorId = document.getElementById('doctorSelect').value;
+    const timeSlot = document.getElementById('timeSlotSelect').value;
+
+    fetch(`/fetch_checked_in_patients?date=${date}&doctor_id=${doctorId}&time_slot=${timeSlot}`)
+        .then(response => response.json())
+        .then(data => {
+            const patientList = document.getElementById('patientList');
+            patientList.innerHTML = '';
+
+            const existingQueue = data.existingQueue;
+            if (existingQueue && existingQueue.length > 0) {
+                document.getElementById('createQueueBtn').style.display = 'none';
+                document.getElementById('queueExistsMessage').style.display = 'block';
+                renderQueue(existingQueue);
+                if (data.existingQueue && data.existingQueue.length > 0) {
+                    document.getElementById('registrationCard').style.display = 'block';
+                }
+            } else {
+                document.getElementById('createQueueBtn').style.display = 'block';
+                document.getElementById('queueExistsMessage').style.display = 'none';
+            }
+
+            if (data.patients && data.patients.length > 0) {
+                data.patients.forEach((patient, index) => {
+                    const row = `<tr>
+                        <td>${index + 1}</td>
+                        <td>${patient.name}</td>
+                        <td>${patient.age}</td>
+                        <td>${patient.status}</td>
+                    </tr>`;
+                    patientList.innerHTML += row;
+                });
+            } else {
+                patientList.innerHTML = '<tr><td colspan="4" class="text-center">No checked-in patients found.</td></tr>';
+            }
+
+            hideLoader();
+        });
 }
 
 function createQueue() {
-    showLoader(); // Show loader before starting the process
-    const selectedDate = document.querySelector('input[name="date"]').value;
-    const doctorId = document.querySelector('#doctorSelect').value;
-    const timeSlot = document.querySelector('select[name="time_slot"]').value;
+    showLoader();
+    const date = document.getElementById('dateInput').value;
+    const doctorId = document.getElementById('doctorSelect').value;
+    const timeSlot = document.getElementById('timeSlotSelect').value;
 
-    if (!doctorId) {
-        alert('Please select a doctor.');
-        hideLoader();
-        return;
-    }
-
-    fetch(`/create_opd_queue?date=${selectedDate}&doctor_id=${doctorId}&time_slot=${timeSlot}`, {
+    fetch(`/create_opd_queue`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        hideLoader(); // Hide loader after process is completed
-        if (data.success) {
-            alert('Queue created successfully');
-            location.reload(); // Reload to show the updated queue
-        } else {
-            alert('Failed to create queue: ' + data.error);
-        }
-    })
-    .catch(error => {
-        hideLoader();
-        alert('An error occurred: ' + error.message);
-    });
-}
-
-function onSpotRegistration() {
-    const formData = new FormData(document.getElementById('onSpotRegistrationForm'));
-
-    fetch('{{ url_for("hospital_bp.on_spot_registration") }}', {
-        method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, doctor_id: doctorId, time_slot: timeSlot })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Patient registered successfully');
-            location.reload();
+            renderQueue(data.queue);
+            document.getElementById('registrationCard').style.display = 'block';
+            document.getElementById('createQueueBtn').style.display = 'none';
+            document.getElementById('queueExistsMessage').style.display = 'block';
         } else {
-            alert('Failed to register patient');
+            alert(`Failed to create queue: ${data.error}`);
         }
+        hideLoader();
+    });
+    document.getElementById('registrationCard').style.display = 'block';
+}
+
+function renderQueue(queue) {
+    const queueContainer = document.getElementById('queueVisualization');
+    queueContainer.innerHTML = '';
+
+    queue.forEach(patient => {
+        const circle = document.createElement('div');
+        circle.classList.add('queue-circle');
+        circle.dataset.patientId = patient.id;
+
+        if (patient.type === 'Emergency') {
+            circle.classList.add('queue-emergency');
+        } else if (patient.type === 'Senior') {
+            circle.classList.add('queue-senior');
+        } else if (patient.type === 'On-site') {
+            circle.classList.add('queue-onsite');
+        }
+
+        const displayName = patient.name;
+        circle.innerHTML = `
+            <div class="queue-number">${patient.queue_number}</div>
+            <div class="patient-name">${displayName}</div>
+        `;
+
+        circle.addEventListener('click', () => {
+            markPatientAsDone(patient.id, patient.type === 'On-site');
+        });
+
+        queueContainer.appendChild(circle);
     });
 }
 
-function updatePatientStatus(patientId) {
-    showLoader(); // Show loader before starting the process
-    fetch(`/update_patient_status/${patientId}`, {
+function markPatientAsDone(patientId, isOnsite = false) {
+    showLoader();
+    const url = isOnsite ? `/update_onsite_patient_status/${patientId}` : `/update_patient_status/${patientId}`;
+
+    fetch(url, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        }
+        headers: { 'Content-Type': 'application/json' }
     })
     .then(response => response.json())
     .then(data => {
-        hideLoader(); // Hide loader after process is completed
         if (data.success) {
-            alert('Patient status updated to Done');
-            location.reload(); // Reload to show the updated queue
+            alert('Patient marked as done.');
+            renderQueue(data.updatedQueue);
+            notifyPatients();
         } else {
-            alert('Failed to update patient status: ' + data.error);
+            alert(`Failed to update patient status: ${data.error}`);
         }
-    })
-    .catch(error => {
         hideLoader();
-        alert('An error occurred: ' + error.message);
     });
 }
 
-function showLoader() {
-    document.getElementById('loader').style.display = 'flex';
+function notifyPatients() {
+    fetch(`/notify_upcoming_patients`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Notification emails sent.');
+            }
+        });
 }
 
-function hideLoader() {
-    document.getElementById('loader').style.display = 'none';
+function updatePatientList(patient) {
+    const patientList = document.getElementById('patientList');
+    const row = `<tr>
+        <td>${patient.queue_number}</td>
+        <td>${patient.name}</td>
+        <td>${patient.age}</td>
+        <td>${patient.status}</td>
+    </tr>`;
+    patientList.innerHTML += row;
 }
+
+function registerPatient(event) {
+    event.preventDefault();
+    const patientName = document.getElementById('patientName').value;
+    const date = document.getElementById('dateInput').value;
+    const doctorId = document.getElementById('doctorSelect').value;
+    const timeSlot = document.getElementById('timeSlotSelect').value;
+
+    fetchMaxQueueNumber(date, doctorId, timeSlot).then(maxQueueNumber => {
+        fetch('/register_patient', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: patientName,
+                date: date,
+                doctor_id: doctorId,
+                time_slot: timeSlot,
+                queue_number: maxQueueNumber + 1
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            addPatientToQueueVisualization(data.queue_id, data.queue_number, data.onsite_name);
+        })
+        .catch(error => console.error('Error registering patient:', error));
+    });
+}
+
+function addPatientToQueueVisualization(queueId, queueNumber, onsiteName) {
+    const queueContainer = document.getElementById('queueVisualization');
+    const circle = document.createElement('div');
+    circle.classList.add('queue-circle');
+    circle.dataset.queueId = queueId;
+
+    circle.innerHTML = `
+        <div class="queue-number">${queueNumber}</div>
+        <div class="patient-name">${onsiteName}</div>
+    `;
+    queueContainer.appendChild(circle);
+}
+
 </script>
 
 <style>
-.queue-box, .waiting-list-box {
-    background-color: #f5f5f5;
-    padding: 20px;
-    border-radius: 10px;
-}
-.queue-waiting {
-    background-color: #FFC0CB; /* Pink for waiting list */
-    color: white;
-}
-.queue-circle {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 90px;
-    height: 90px;
-    border-radius: 50%;
-    background-color: #4CAF50;
-    color: white;
-    font-size: 14px;
-    font-weight: bold;
-    margin: 10px;
-    cursor: pointer;
-    transition: transform 0.3s, background-color 0.3s;
-}
+    .queue-box, .waiting-list-box {
+        background-color: #f9f9f9; /* Light background for better contrast */
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); /* Soft shadow */
+    }
+    .queue-waiting {
+        background-color: #FFC0CB; /* Pink for waiting list */
+        color: white;
+    }
+    .queue-circle {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100px; /* Slightly larger for better visibility */
+        height: 100px;
+        border-radius: 50%;
+        background-color: #4CAF50; /* Default color */
+        color: white;
+        font-size: 16px;
+        font-weight: bold;
+        margin: 15px;
+        cursor: pointer;
+        transition: transform 0.3s, background-color 0.3s;
+        border: 2px solid white; /* White border for better visibility */
+    }
+    
+    .queue-circle:hover {
+        background-color: #38878e;
+        transform: scale(1.1);
+        box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    
+    .queue-senior {
+        background-color: #c6b62a; /* Dark yellow for senior citizens */
+        color: #3E2723;
+    }
+    
+    .queue-emergency {
+        background-color: #FF0000; /* Red for emergency cases */
+        color: white;
+    }
 
-.queue-circle:hover {
-    background-color: #38878e;
-    transform: scale(1.1);
-    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.2);
-}
-
-.queue-senior {
-    background-color: #c6b62a; /* Dark yellow for senior citizens */
-    color: #3E2723;
-}
-
-.queue-emergency {
-    background-color: #FF0000; /* Red for emergency cases */
-    color: white;
-}
-
-.queue-number {
-    font-size: 20px;
-    font-weight: bold;
-}
-
-.patient-name {
-    font-size: 12px;
-    font-weight: bold;
-    color: antiquewhite;
-    text-align: center;
-    margin-top: 5px;
-}
+    .queue-onsite{
+        background-color: #cf2e9c; /* Red for emergency cases */
+        color: white;
+    }
+    
+    .queue-number {
+        font-size: 24px; /* Larger number for better visibility */
+        font-weight: bold;
+    }
+    
+    .patient-name {
+        font-size: 14px; /* Slightly larger font */
+        font-weight: bold;
+        color: #333; /* Darker text for better readability */
+        text-align: center;
+        margin-top: 5px;
+    }
 </style>
+
 {% endblock %}

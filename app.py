@@ -35,7 +35,7 @@ from datetime import datetime
 from flask_wtf.file import FileAllowed, FileRequired
 import hashlib
 from wtforms import StringField, SelectField, SubmitField
-from models import db, User, Userfg, Hospital, Booking, Rating, Item, Cart, CartItem, Order, Post, Media, Comment, Like, Posts, OPDAppointment, Doctor, Ambulance
+from models import db, User, Userfg, Hospital, Booking, Rating, Item, Cart, CartItem, Order, Post, Media, Comment, Like, Posts, OPDAppointment, Doctor, Ambulance, Query, LabTestBooking, LabTestQueue
 from transformers import pipeline
 import torch
 import random
