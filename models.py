@@ -103,7 +103,7 @@ class Hospital(db.Model):
     departments = db.relationship('Department', back_populates='hospital', lazy=True)
     diagnostic_departments = db.relationship('DiagnosticDepartment', back_populates='hospital', lazy=True)  # New relationship for diagnostic departments
     ambulances = db.relationship('Ambulance', back_populates='hospital')
-
+    medicines = db.relationship('Medicine', back_populates='hospital', lazy=True)
     
 
 
@@ -390,8 +390,8 @@ class Ambulance(db.Model):
     driver_phone = db.Column(db.String(15), nullable=False)
     driver_email = db.Column(db.String(150), nullable=False)
     vehicle_number = db.Column(db.String(20), nullable=False)
-    location_lat = db.Column(db.Float, nullable=False)
-    location_lng = db.Column(db.Float, nullable=False)
+    location_lat = db.Column(db.Float, nullable=True)
+    location_lng = db.Column(db.Float, nullable=True)
     status = db.Column(db.String(20), default='available', nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
@@ -443,3 +443,57 @@ class LabTestQueue(db.Model):
 
     lab_test_booking = db.relationship('LabTestBooking', backref='queue_entries')
     hospital = db.relationship('Hospital', backref='test_queues')
+
+
+
+
+
+class Medicine(db.Model):
+    __tablename__ = 'medicines'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    description = db.Column(db.String(500), nullable=True)
+    threshold = db.Column(db.Integer, nullable=False)
+    hospital_id = db.Column(db.Integer, db.ForeignKey('hospital.id'), nullable=False)
+
+    # Relationships
+    batches = db.relationship('MedicineBatch', backref='medicine', lazy=True)
+    hospital = db.relationship('Hospital', back_populates='medicines')
+
+    @property
+    def total_stock(self):
+        """Calculate total stock by summing added stock minus sold stock for all batches."""
+        total_added = sum(batch.stock_added for batch in self.batches)
+        total_sold = sum(batch.stock_sold for batch in self.batches)
+        return total_added - total_sold
+
+
+class MedicineBatch(db.Model):
+    __tablename__ = 'medicine_batches'
+
+    id = db.Column(db.Integer, primary_key=True)
+    medicine_id = db.Column(db.Integer, db.ForeignKey('medicines.id'), nullable=False)
+    supplier = db.Column(db.String(100), nullable=False)
+    expiration_date = db.Column(db.Date, nullable=False)
+    stock_added = db.Column(db.Integer, nullable=False)
+    stock_sold = db.Column(db.Integer, nullable=True, default=0)
+    note = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationship to Medicine Logs, updated to avoid conflict
+    logs = db.relationship('MedicineLog', back_populates='batch', lazy=True)
+
+
+class MedicineLog(db.Model):
+    __tablename__ = 'medicine_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    batch_id = db.Column(db.Integer, db.ForeignKey('medicine_batches.id'), nullable=False)
+    change_amount = db.Column(db.Integer, nullable=False)
+    change_type = db.Column(db.String(20), nullable=False)  # "added" or "sold"
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    note = db.Column(db.String(255), nullable=True)
+
+    # Relationship to Medicine Batch, updated to avoid conflict
+    batch = db.relationship('MedicineBatch', back_populates='logs')

@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app, session
 from flask_login import login_required, current_user
-from models import db, Hospital, Ward, Bed, Booking, Notification, User, Department, Doctor, OPDAppointment, MaxPatient, LabTestBooking, Queue, DiagnosticDepartment, DiagnosticTest, Ambulance, LabTestQueue, OPDQueue
+from models import db, Hospital, Ward, Bed, Booking, Notification, User, Department, Doctor, OPDAppointment, MaxPatient, LabTestBooking, Queue, DiagnosticDepartment, DiagnosticTest, Ambulance, LabTestQueue, OPDQueue, Medicine, MedicineLog, MedicineBatch
 from flask_mail import Message, Mail
 from datetime import datetime
 import os
@@ -1813,3 +1813,115 @@ def delete_ambulance(ambulance_id):
 
     flash('Ambulance deleted successfully!', 'success')
     return redirect(url_for('hospital_bp.register_ambulance'))
+
+
+
+@hospital_bp.route('/medicine_inventory', methods=['GET', 'POST'])
+@login_required
+def medicine_inventory():
+    hospital = current_user.hospitals[0]
+
+    if request.method == 'POST':
+        data = request.form
+        new_medicine = Medicine(
+            name=data['name'],
+            description=data.get('description'),
+            threshold=int(data['threshold']),
+            hospital_id=hospital.id
+        )
+        db.session.add(new_medicine)
+        db.session.commit()
+        flash("Medicine type added successfully", "success")
+        return redirect(url_for('hospital_bp.medicine_inventory'))
+
+    medicines = Medicine.query.filter_by(hospital_id=hospital.id).all()
+    return render_template('HOSPITAL/medicine_inventory.html', medicines=medicines, hospital=hospital)
+
+@hospital_bp.route('/medicine/<int:medicine_id>', methods=['GET', 'POST'])
+@login_required
+def medicine_detail(medicine_id):
+    hospital = current_user.hospitals[0]  # Fetch the current user's hospital
+
+    # Fetch the specified medicine for the current hospital
+    medicine = Medicine.query.filter_by(id=medicine_id, hospital_id=hospital.id).first_or_404()
+
+    if request.method == 'POST':
+        # Process form submission to add a new batch
+        data = request.form
+        new_batch = MedicineBatch(
+            medicine_id=medicine.id,
+            supplier=data.get('supplier'),
+            expiration_date=datetime.strptime(data.get('expiration_date'), '%Y-%m-%d'),
+            stock_added=int(data.get('stock_added')),
+            stock_sold=0,
+            note=data.get('note')
+        )
+        db.session.add(new_batch)
+        db.session.commit()
+        
+        # Create a log entry for the new batch addition
+        medicine_log = MedicineLog(
+            batch_id=new_batch.id,
+            change_amount=new_batch.stock_added,
+            change_type='added',
+            note=f"Initial stock added for {medicine.name} batch"
+        )
+        db.session.add(medicine_log)
+        db.session.commit()
+
+        flash("New batch added successfully", "success")
+        return redirect(url_for('hospital_bp.medicine_detail', medicine_id=medicine.id))
+
+    # Query logs related to all batches of this medicine
+    logs = (
+        MedicineLog.query.join(MedicineBatch)
+        .filter(MedicineBatch.medicine_id == medicine.id)
+        .order_by(MedicineLog.timestamp.desc())
+        .all()
+    )
+
+    # Pass the `hospital` object to the template context
+    return render_template('HOSPITAL/medicine_detail.html', medicine=medicine, logs=logs, hospital=hospital)
+
+@hospital_bp.route('/update_medicine_stock/<int:medicine_id>', methods=['POST'])
+@login_required
+def update_medicine_stock(medicine_id):
+    hospital = current_user.hospitals[0]
+    
+    # Fetch the specified medicine
+    medicine = Medicine.query.filter_by(id=medicine_id, hospital_id=hospital.id).first_or_404()
+    
+    # Get the change amount from the form and validate it's a positive number for sold units
+    change_amount = abs(int(request.form['change_amount']))
+    note = request.form.get('note', 'Stock update')
+    
+    # Process the stock deduction (sold units) starting from the oldest batches
+    remaining_to_deduct = change_amount
+    for batch in sorted(medicine.batches, key=lambda b: b.created_at):
+        if remaining_to_deduct <= 0:
+            break
+        
+        available_stock = batch.stock_added - batch.stock_sold
+        if available_stock > 0:
+            # Deduct from the available stock in this batch
+            deduction = min(remaining_to_deduct, available_stock)
+            batch.stock_sold += deduction
+            remaining_to_deduct -= deduction
+
+            # Log the sale for this batch
+            medicine_log = MedicineLog(
+                batch_id=batch.id,
+                change_amount=-deduction,
+                change_type='sold',
+                note=note
+            )
+            db.session.add(medicine_log)
+    
+    # Commit the updates to the database
+    db.session.commit()
+    
+    # Flash message if below threshold after update
+    if medicine.total_stock < medicine.threshold:
+        flash(f"Warning: Stock for {medicine.name} is below threshold!", "warning")
+    
+    return redirect(url_for('hospital_bp.medicine_detail', medicine_id=medicine.id))

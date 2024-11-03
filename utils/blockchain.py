@@ -56,7 +56,7 @@ def store_data_on_blockchain(prescription_hash, test_results_hash):
 
         # Call the storeMedicalData function and build the transaction
         txn = contract.functions.storeMedicalData(prescription_hash, test_results_hash).build_transaction({
-            'chainId': 12345,  # Replace with Kaleido's actual chain ID (check the Kaleido console)
+            'chainId': 1337,  # Replace with Kaleido's actual chain ID (check the Kaleido console)
             'gas': 2000000,    # Gas limit for the transaction
             'gasPrice': w3.to_wei('20', 'gwei'),  # Gas price in Gwei
             'nonce': nonce,    # Nonce value for transaction uniqueness
