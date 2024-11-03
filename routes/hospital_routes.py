@@ -566,7 +566,6 @@ def create_opd_queue():
 
     return jsonify(success=True, queue=response_queue_data)
 
-
 @hospital_bp.route('/update_onsite_patient_status/<int:patient_id>', methods=['POST'])
 @login_required
 def update_onsite_patient_status(patient_id):
@@ -575,23 +574,40 @@ def update_onsite_patient_status(patient_id):
     """
     opd_queue_entry = OPDQueue.query.filter_by(id=patient_id, status='Pending').first()
     
-    if opd_queue_entry and opd_queue_entry.onsite_name:
+    if opd_queue_entry:
+        # Capture the queue number of the patient being marked as Done
+        completed_queue_number = opd_queue_entry.queue_number
+
+        # Mark the patient status as 'Done'
         opd_queue_entry.status = 'Done'
         db.session.commit()
 
-        # Send thank-you email to the onsite patient if an email is provided
-        if opd_queue_entry.onsite_email:
-            msg = Message('Your Onsite OPD Registration Completion', recipients=[opd_queue_entry.onsite_email])
-            msg.body = f"Dear {opd_queue_entry.onsite_name}, your appointment has been marked as done. Thank you!"
+        # Determine the patient's email and name for sending a thank-you email
+        recipient_email = opd_queue_entry.onsite_email if opd_queue_entry.onsite_name else opd_queue_entry.patient.user.email
+        recipient_name = opd_queue_entry.onsite_name if opd_queue_entry.onsite_name else opd_queue_entry.patient.user.name
+
+        # Send thank-you email
+        if recipient_email:
+            msg = Message('Your OPD Appointment Completion', recipients=[recipient_email])
+            msg.body = f"Dear {recipient_name}, your appointment registered onsite has been marked as done. Thank you!"
             mail.send(msg)
 
-        # Fetch updated queue without "Done" entries
+        # Notify the next patients in line, passing the queue number of the completed patient
+        notify_upcoming_patients_internal(
+            doctor_id=opd_queue_entry.doctor_id,
+            appointment_date=opd_queue_entry.appointment_date,
+            time_slot=opd_queue_entry.time_slot,
+            completed_queue_number=completed_queue_number
+        )
+
+        # Fetch the updated queue, excluding "Done" entries
         updated_queue = get_current_queue(
             doctor_id=opd_queue_entry.doctor_id,
             appointment_date=opd_queue_entry.appointment_date,
             time_slot=opd_queue_entry.time_slot
         )
 
+        # Prepare the queue data for the response
         filtered_queue = [
             {
                 'id': entry.id,
@@ -602,8 +618,7 @@ def update_onsite_patient_status(patient_id):
         ]
         return jsonify(success=True, updatedQueue=filtered_queue), 200
 
-    return jsonify(success=False, error="Onsite patient not found or already done."), 400
-
+    return jsonify(success=False, error="Patient not found or already marked as done."), 400
 
 
 @hospital_bp.route('/register_patient', methods=['POST'])
@@ -617,10 +632,12 @@ def register_patient():
     doctor_id = data['doctor_id']
     time_slot = data['time_slot']
 
+    # Determine the max queue number for this time slot to assign the next one
     max_queue_number = db.session.query(func.max(OPDQueue.queue_number)).filter_by(
         appointment_date=date, doctor_id=doctor_id, time_slot=time_slot
     ).scalar() or 0
 
+    # Create a new OPDQueue entry with the next queue number and onsite information
     queue_entry = OPDQueue(
         onsite_name=name,
         onsite_email=email,  # Store onsite email
@@ -639,15 +656,6 @@ def register_patient():
         'queue_number': queue_entry.queue_number,
         'onsite_name': queue_entry.onsite_name
     })
-
-def get_current_queue(doctor_id, appointment_date, time_slot):
-    return OPDQueue.query.filter(
-        OPDQueue.doctor_id == doctor_id,
-        OPDQueue.appointment_date == appointment_date,
-        OPDQueue.time_slot == time_slot,
-        OPDQueue.status == 'Pending'
-    ).order_by(OPDQueue.queue_number).all()
-
 
 
 
@@ -680,6 +688,9 @@ def update_patient_status(patient_id):
     patient = OPDAppointment.query.get(patient_id)
 
     if opd_queue_entry and patient and patient.status == 'CheckedIn':
+        # Capture the queue number of the patient being marked as Done
+        completed_queue_number = opd_queue_entry.queue_number
+
         # Update status to Done in both OPDQueue and OPDAppointment models
         opd_queue_entry.status = 'Done'
         patient.status = 'Done'
@@ -690,45 +701,99 @@ def update_patient_status(patient_id):
         msg.body = f"Dear {patient.user.name}, your appointment has been marked as done. Thank you!"
         mail.send(msg)
 
+        # Notify the next patients in line, passing the queue number of the completed patient
+        notify_upcoming_patients_internal(
+            doctor_id=opd_queue_entry.doctor_id,
+            appointment_date=opd_queue_entry.appointment_date,
+            time_slot=opd_queue_entry.time_slot,
+            completed_queue_number=completed_queue_number
+        )
+
         # Fetch the updated queue without the Done status patients
-        updated_queue = get_current_queue(doctor_id=opd_queue_entry.doctor_id, 
-                                          appointment_date=opd_queue_entry.appointment_date, 
-                                          time_slot=opd_queue_entry.time_slot)
-        filtered_queue = [{'id': patient.patient_id, 'queue_number': patient.queue_number, 'name': patient.patient.user.name, 
-                           'type': 'Emergency' if patient.patient.is_emergency else 'Senior' if patient.patient.user.age >= 60 else 'Regular'} 
-                          for patient in updated_queue]
+        updated_queue = get_current_queue(
+            doctor_id=opd_queue_entry.doctor_id, 
+            appointment_date=opd_queue_entry.appointment_date, 
+            time_slot=opd_queue_entry.time_slot
+        )
+
+        filtered_queue = [
+            {
+                'id': patient.patient_id,
+                'queue_number': patient.queue_number,
+                'name': patient.patient.user.name,
+                'type': 'Emergency' if patient.patient.is_emergency else 'Senior' if patient.patient.user.age >= 60 else 'Regular'
+            }
+            for patient in updated_queue
+        ]
 
         return jsonify(success=True, updatedQueue=filtered_queue), 200
 
     return jsonify(success=False, error="Patient not found in queue or not eligible for update."), 400
 
 
-def get_current_queue(doctor_id, appointment_date, time_slot):
+
+def get_current_queue(doctor_id=None, appointment_date=None, time_slot=None):
     """
-    Retrieve the current queue with Pending patients only in OPDQueue, keeping their original queue number intact.
+    Retrieve the current queue with Pending patients only, ordered by queue_number.
     """
-    return OPDQueue.query.join(OPDAppointment, OPDAppointment.id == OPDQueue.patient_id).filter(
-        OPDQueue.doctor_id == doctor_id,
-        OPDQueue.appointment_date == appointment_date,
-        OPDQueue.time_slot == time_slot,
-        OPDQueue.status == 'Pending',           # Fetch only Pending status from OPDQueue
-           ################ # Fetch only CheckedIn status from OPDAppointment
-    ).order_by(OPDQueue.queue_number).all()
+    query = OPDQueue.query.filter(OPDQueue.status == 'Pending')
+    
+    if doctor_id:
+        query = query.filter(OPDQueue.doctor_id == doctor_id)
+    if appointment_date:
+        query = query.filter(OPDQueue.appointment_date == appointment_date)
+    if time_slot:
+        query = query.filter(OPDQueue.time_slot == time_slot)
+
+    return query.order_by(OPDQueue.queue_number).all()
+
 
 
 @hospital_bp.route('/notify_upcoming_patients', methods=['POST'])
 @login_required
 def notify_upcoming_patients():
-    updated_queue = get_current_queue()  # Assuming a helper function to fetch the current queue
-
-    # Notify the next four patients
-    for patient_entry in updated_queue[:4]:  
-        patient = OPDAppointment.query.get(patient_entry.patient_id)
-        msg = Message('Queue Update', recipients=[patient.user.email])
-        msg.body = f"Hello {patient.user.name}, you are now #{patient_entry.queue_number} in the queue."
-        mail.send(msg)
-
+    """
+    HTTP route to notify the next four patients in line. Calls the internal function.
+    """
+    notify_upcoming_patients_internal()
     return jsonify(success=True), 200
+
+
+def notify_upcoming_patients_internal(doctor_id, appointment_date, time_slot, completed_queue_number):
+    """
+    Internal function to notify the next four patients in line about their updated queue status.
+    """
+    # Fetch the updated queue, which includes only Pending patients in order
+    updated_queue = get_current_queue(
+        doctor_id=doctor_id,
+        appointment_date=appointment_date,
+        time_slot=time_slot
+    )
+
+    # Notify the next four patients in line
+    for patient_entry in updated_queue[:4]:
+        # Determine if the patient is onsite or registered
+        if patient_entry.onsite_name:  # Onsite patient
+            recipient_email = patient_entry.onsite_email
+            recipient_name = patient_entry.onsite_name
+        else:  # Registered patient
+            recipient_email = patient_entry.patient.user.email
+            recipient_name = patient_entry.patient.user.name
+
+        # Send notification email if email exists
+        if recipient_email:
+            msg = Message('Queue Update Notification', recipients=[recipient_email])
+            msg.body = (
+                f"Hello {recipient_name},\n\n"
+                f"Queue number {completed_queue_number} has completed its appointment.\n"
+                f"You are now #{patient_entry.queue_number} in the queue. You will meet the doctor soon.\n\n"
+                f"Thank you for your patience."
+            )
+            mail.send(msg)
+
+
+
+
 
 @hospital_bp.route('/get_time_slots_opd/<int:doctor_id>', methods=['GET'])
 @login_required
