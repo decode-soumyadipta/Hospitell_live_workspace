@@ -17,7 +17,7 @@ from flask_login import LoginManager, login_user, logout_user, login_required, U
 from config import Config  # Import the Config class
 import requests  # To make API calls
 from requests.auth import HTTPBasicAuth
-import cv2
+#import cv2
 import numpy as np
 import time
 import mediapipe as mp

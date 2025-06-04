@@ -6,7 +6,7 @@ from sqlalchemy.orm import aliased
 from geopy.distance import great_circle
 import random
 from werkzeug.utils import secure_filename
-import messagebird
+#import messagebird
 from flask_mail import Mail, Message  # Import Message here
 import os
 from datetime import datetime, timedelta
@@ -25,7 +25,7 @@ MESSAGEBIRD_API_KEY = '8XOUzqZZ0uxGo4GSKYkTMSFQCSvxQW0JoqtB'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
 UPLOAD_FOLDER = 'static/images/'
 # Initialize the MessageBird client
-client = messagebird.Client(MESSAGEBIRD_API_KEY)
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -324,7 +324,7 @@ def nearby_hospitals():
         user_location = (float(user_lat), float(user_lng))
         distance = great_circle(user_location, hospital_location).kilometers
 
-        if distance <= 5:
+        if distance <= 4:
             # Sum all ready beds across all wards for this hospital
             icu_beds_ready = Bed.query.join(Ward).filter(
                 Bed.bed_type == 'ICU',
@@ -599,6 +599,10 @@ def upload_medical_data():
 
         if prescription and test_results:
             try:
+                # Create medical_records_temp directory if it doesn't exist
+                if not os.path.exists('medical_records_temp'):
+                    os.makedirs('medical_records_temp')
+                    
                 # Save files temporarily
                 prescription_filename = secure_filename(prescription.filename)
                 test_results_filename = secure_filename(test_results.filename)
@@ -614,8 +618,10 @@ def upload_medical_data():
                 test_results_hash = upload_to_ipfs(test_results_path)
 
                 # Clean up the temporary files
-                os.remove(prescription_path)
-                os.remove(test_results_path)
+                if os.path.exists(prescription_path):
+                    os.remove(prescription_path)
+                if os.path.exists(test_results_path):
+                    os.remove(test_results_path)
 
                 if prescription_hash and test_results_hash:
                     # Blockchain transaction: Store IPFS hashes on the blockchain

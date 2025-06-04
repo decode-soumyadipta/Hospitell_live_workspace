@@ -6,11 +6,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Kaleido IPFS API endpoint
-KALEIDO_IPFS_URL = "https://u0zivz3dd7-u0yb1q9rn5-ipfs.us0-aws.kaleido.io/api/v0/add"
-
+KALEIDO_IPFS_URL = os.getenv("KALEIDO_IPFS_URL")
+KALEIDO_APP_ID = os.getenv("KALEIDO_APP_ID")
+KALEIDO_APP_PASSWORD = os.getenv("KALEIDO_APP_PASSWORD")
 # App ID and Password for Kaleido's IPFS service
-KALEIDO_APP_ID = "u0h9j1qe7l"
-KALEIDO_APP_PASSWORD = "zs8iVJFnHup6pOHE2bSK1st0xWQXUcYlIO_X0CAIJ34"
+
+
 
 def upload_to_ipfs(file_path):
     try:
