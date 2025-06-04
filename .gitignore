@@ -4,7 +4,10 @@ hospi_venv/
 __pycache__/                                                        
 
 config.json
-
+.env/
+*.env
+*.env.*
+*.pem
 bin/solc-output-compile-all.json
 bin/contracts/MedicalData-solc-output.json
 medical_records_temp/AOT_Hackathon_Project_Plan.pdf
