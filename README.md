@@ -8,6 +8,37 @@
 
 Hospitell is a comprehensive healthcare management platform that bridges the gap between patients and healthcare providers. The platform offers seamless bed and OPD management, enabling instant availability information for patients while providing streamlined control for hospitals, all enhanced by AI/LLM -powered features like chatbot based appointment booking.
 
+
+## 📸 Scrrenshots
+
+# page-
+![image](https://github.com/user-attachments/assets/a29d430b-b5f5-4974-8c24-a76e61876380)
+
+# Role based Access-
+![image](https://github.com/user-attachments/assets/e3a6ac51-873f-4dc6-bca0-e7f2840189a5)
+
+# User Dashbaord- 
+![image](https://github.com/user-attachments/assets/af5947ea-8bf1-4598-abba-6bc4f02b172c)
+
+# Blockchian Medical Data Storage-
+![image](https://github.com/user-attachments/assets/2aabe29b-551d-4fb0-a572-8c7015c2ef19)
+
+# IPFS-
+![image](https://github.com/user-attachments/assets/f0d2e043-4fa8-45be-b44a-82a543a635d3)
+
+# Hospital Dashbaord-
+![image](https://github.com/user-attachments/assets/129d2d82-d8bb-40c3-bd8a-7c0242534c70)
+
+# Hospital Data-
+![image](https://github.com/user-attachments/assets/9f054b69-c2d4-4919-89f0-f9ba62a2dbe6)
+
+
+
+
+
+
+
+
 ## ✨ Key Features
 
 ### 👨‍👩‍👧‍👦 For Patients
