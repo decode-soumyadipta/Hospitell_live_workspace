@@ -22,3 +22,4 @@ WTForms==3.2.1
 # **NEW** for production WSGI
 gunicorn==23.0.0
 pymysql
+setuptools
