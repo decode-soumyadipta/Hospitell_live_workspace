@@ -13,6 +13,14 @@ bin/contracts/MedicalData-solc-output.json
 medical_records_temp/AOT_Hackathon_Project_Plan.pdf
 medical_records_temp/aot_resume.pdf
 
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Vercel deployment files
+.vercel/
+.now/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -209,3 +217,7 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+.json
+.vs/
+__pycache__/

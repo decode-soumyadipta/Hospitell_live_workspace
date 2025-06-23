@@ -25,7 +25,7 @@ import math
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 import threading
 import schedule
-import stream
+
 import datetime
 from flask_wtf import FlaskForm
 from wtforms import StringField, FileField, SubmitField,TextAreaField
@@ -156,10 +156,11 @@ nlu_model = pipeline("ner", model="dbmdz/bert-base-cased-finetuned-conll03-engli
 # Register Blueprints
 from routes.user_routes import user_bp
 from routes.hospital_routes import hospital_bp
-
+from health_check import health_bp
 
 app.register_blueprint(user_bp)
 app.register_blueprint(hospital_bp)
+app.register_blueprint(health_bp)
 
 
 class PostForm(FlaskForm):

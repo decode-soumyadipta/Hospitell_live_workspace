@@ -47,6 +47,55 @@ Hospitell is a comprehensive healthcare management platform that bridges the gap
 - **⛓️ Blockchain**: Web3.py for Ethereum integration via Kaleido
 - **📁 File Storage**: IPFS via Kaleido's IPFS service
 - **📧 Notifications**: Email (Flask-Mail) and SMS integration
+- **🐳 Containerization**: Docker and Docker Compose
+- **🚀 CI/CD**: GitHub Actions
+- **☁️ Deployment**: Vercel
+
+## 🚀 Deployment Options
+
+### 🐳 Docker Deployment
+
+1. Make sure Docker and Docker Compose are installed on your system.
+
+2. Create a `.env` file based on `.env.example` and fill in your configuration values.
+
+3. Build and start the containers:
+   ```bash
+   docker-compose up -d --build
+   ```
+
+4. Access the application at http://localhost:5000
+
+### ☁️ Vercel Deployment
+
+1. Install the Vercel CLI:
+   ```bash
+   npm install -g vercel
+   ```
+
+2. Login to Vercel:
+   ```bash
+   vercel login
+   ```
+
+3. Deploy the application:
+   ```bash
+   vercel --prod
+   ```
+
+### 🔄 CI/CD with GitHub Actions
+
+The project includes a GitHub Actions workflow that automatically:
+
+1. Runs tests on every push and pull request to the main/master branch
+2. Deploys to Vercel when changes are pushed to the main/master branch
+
+To set up CI/CD:
+
+1. Add the following secrets to your GitHub repository:
+   - `VERCEL_TOKEN`: Your Vercel API token
+   - `VERCEL_ORG_ID`: Your Vercel organization ID
+   - `VERCEL_PROJECT_ID`: Your Vercel project ID
 
 ### 🎨 Frontend
 - **📄 Templates**: Jinja2 with Bootstrap
