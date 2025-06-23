@@ -10,7 +10,6 @@ import os
 from datetime import datetime
 from flask_mail import Mail, Message
 from flask_bcrypt import Bcrypt
-from flask_mysqldb import MySQL
 from flask_dance.contrib.google import make_google_blueprint, google
 from flask_dance.contrib.facebook import make_facebook_blueprint, facebook
 from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin, current_user, logout_user
@@ -39,6 +38,8 @@ from models import db, User, Userfg, Hospital, Booking, Rating, Item, Cart, Cart
 from transformers import pipeline
 import torch
 import random
+import pymysql
+pymysql.install_as_MySQLdb()
   # Import your models here
 
 
