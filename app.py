@@ -123,7 +123,6 @@ def allowed_file(filename):
 
 
 mail = Mail(app)
-mysql = MySQL(app) 
 bcrypt = Bcrypt(app)
 s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 google_bp = make_google_blueprint(
